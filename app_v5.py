@@ -12,7 +12,7 @@ st.markdown("Automates strict multi-variable pattern tracking from your Warrior 
 # --- SIDEBAR INTERFACE CONTROLS ---
 st.sidebar.header("🕹️ Execution Directives")
 exchange = st.sidebar.selectbox("Exchange Registry:", ["NSE (.NS)", "BSE (.BO)"])
-raw_ticker = st.sidebar.text_input("Asset Ticker Symbol:", "TATAMOTORS")
+raw_ticker = st.sidebar.text_input("Asset Ticker Symbol:", "TCS")
 trading_tf = st.sidebar.selectbox("Trading Timeframe (Execution):", ["5m", "15m", "30m"])
 trend_tf = st.sidebar.selectbox("Trend Anchor Timeframe (Filter):", ["1h", "2h", "1d"])
 
