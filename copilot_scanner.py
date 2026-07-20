@@ -84,7 +84,7 @@ def score_stock(df):
         score += SCORING_MATRIX["MACD"]; consensus += 1
     else:
         score -= SCORING_MATRIX["MACD"]
-    boll_val = df['Bollinger_Mid'].iloc[-1]
+    boll_val = df['Bollinger_Mid'].iloc[-1].item()
     if not pd.isna(boll_val):
         if df['Close'].iloc[-1] > boll_val:
             score += SCORING_MATRIX["Bollinger"]; consensus += 1
