@@ -49,15 +49,33 @@ def compute_indicators(df):
     return df
 
 def detect_patterns(df):
-    latest_close = float(df['Close'].iloc[-1])
-    latest_open  = float(df['Open'].iloc[-1])
-    latest_high  = float(df['High'].iloc[-1])
-    latest_low   = float(df['Low'].iloc[-1])
+    # Extract scalars safely
+    latest_close = df['Close'].iloc[-1]
+    latest_open  = df['Open'].iloc[-1]
+    latest_high  = df['High'].iloc[-1]
+    latest_low   = df['Low'].iloc[-1]
 
-    prev_close   = float(df['Close'].iloc[-2])
-    prev_open    = float(df['Open'].iloc[-2])
-    prev_high    = float(df['High'].iloc[-2])
-    prev_low     = float(df['Low'].iloc[-2])
+    prev_close   = df['Close'].iloc[-2]
+    prev_open    = df['Open'].iloc[-2]
+    prev_high    = df['High'].iloc[-2]
+    prev_low     = df['Low'].iloc[-2]
+
+    # Skip if any are NaN
+    if pd.isna(latest_close) or pd.isna(latest_open) or pd.isna(latest_high) or pd.isna(latest_low):
+        return []
+    if pd.isna(prev_close) or pd.isna(prev_open) or pd.isna(prev_high) or pd.isna(prev_low):
+        return []
+
+    # Convert to float scalars
+    latest_close = float(latest_close)
+    latest_open  = float(latest_open)
+    latest_high  = float(latest_high)
+    latest_low   = float(latest_low)
+
+    prev_close   = float(prev_close)
+    prev_open    = float(prev_open)
+    prev_high    = float(prev_high)
+    prev_low     = float(prev_low)
 
     patterns = []
 
