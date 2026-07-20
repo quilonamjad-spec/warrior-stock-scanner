@@ -167,7 +167,7 @@ with tab2:
         
         # Highlight strong buy points (Confidence >= 60 & Consensus >= 50)
         for i in range(len(scores)):
-            if scores[i] >= 60 and consensuses[i] >= 50:
+            if scores[i] >= 50 and consensuses[i] >= 50:
                 ax.scatter(df.index[i], scores[i], color='blue', s=120, marker='o', edgecolors='black', label="Strong Buy" if i == 0 else "")
         
         # Highlight strong sell points (Confidence <= -60 & Consensus >= 50)
