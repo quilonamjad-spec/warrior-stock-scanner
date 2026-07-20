@@ -104,14 +104,21 @@ def score_stock(df):
     consensus_score = round((consensus / 4) * 100, 2)
     return normalized_score, consensus_score, patterns
 
-def scan_market():
+def scan_market(interval):
     results = []
     for ticker in TICKERS:
-        df = yf.download(ticker, period="3mo", interval="1d")
+        # intraday data for current day
+        df = yf.download(ticker, period="1d", interval=interval)
         df = compute_indicators(df)
         score, consensus, patterns = score_stock(df)
-        results.append({"Ticker": ticker, "Confidence": score, "Consensus": consensus, "Patterns": ", ".join(patterns)})
+        results.append({
+            "Ticker": ticker,
+            "Confidence": score,
+            "Consensus": consensus,
+            "Patterns": ", ".join(patterns)
+        })
     return pd.DataFrame(results)
+
 
 # --- STREAMLIT APP ---
 st.set_page_config(page_title="Trading Dashboard", layout="wide")
@@ -119,14 +126,16 @@ tab1, tab2 = st.tabs(["Scanner", "Tracker"])
 
 with tab1:
     st.header("Market Scanner")
+    interval = st.sidebar.selectbox("Scanner Interval", ["5m","15m","30m","1h"], index=1)
     if st.button("Run Market Scan"):
-        df_results = scan_market()
+        df_results = scan_market(interval)
         buy_candidates = df_results[df_results['Confidence'] > 0].sort_values(by="Confidence", ascending=False).head(5)
         sell_candidates = df_results[df_results['Confidence'] < 0].sort_values(by="Confidence", ascending=True).head(5)
         st.subheader("Top 5 BUY Candidates")
         st.dataframe(buy_candidates)
         st.subheader("Top 5 SELL Candidates")
         st.dataframe(sell_candidates)
+
 
 with tab2:
     st.header("Stock Tracker")
