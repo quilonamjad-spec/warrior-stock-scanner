@@ -6,7 +6,33 @@ import matplotlib.pyplot as plt
 import mplfinance as mpf
 
 # --- PARAMETERS ---
-NIFTY500_TICKERS = ["RELIANCE.NS", "TCS.NS", "INFY.NS", "HDFCBANK.NS"]  # Add full Nifty 500 list
+NIFTY500_TICKERS = [  "BEL.NS",
+                      "BHARTIARTL.NS",
+                      "BOSCHLTD.NS",
+                      "BPCL.NS",
+                      "BRITANNIA.NS",
+                      "CANBK.NS",
+                      "CGPOWER.NS",
+                      "CHOLAFIN.NS",
+                      "CIPLA.NS",
+                      "COALINDIA.NS",
+                      "COLPAL.NS",
+                      "CUMMINSIND.NS",
+                      "DIVISLAB.NS",
+                      "DLF.NS",
+                      "DRREDDY.NS",
+                      "GAIL.NS",
+                      "GODREJCP.NS",
+                      "GRASIM.NS",
+                      "HAL.NS",
+                      "HCLTECH.NS",
+                      "HDFCAMC.NS",
+                      "HDFCBANK.NS",
+                      "HDFCLIFE.NS",
+                      "HEROMOTOCO.NS",
+                      "HINDALCO.NS",
+                      "HINDUNILVR.NS",
+                      "HINDZINC.NS"]  # Add full Nifty 500 list
 
 # Define scoring matrix (weights)
 SCORING_MATRIX = {
