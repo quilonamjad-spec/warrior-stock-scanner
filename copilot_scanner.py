@@ -80,29 +80,32 @@ def score_stock(df):
     score = 0
     consensus = 0
 
-    # Indicators
+    # EMA check
     if df['EMA20'].iloc[-1] > df['EMA50'].iloc[-1]:
         score += SCORING_MATRIX["EMA20_vs_EMA50"]; consensus += 1
     else:
         score -= SCORING_MATRIX["EMA20_vs_EMA50"]
 
+    # RSI check
     if df['RSI'].iloc[-1] > 50:
         score += SCORING_MATRIX["RSI"]; consensus += 1
     else:
         score -= SCORING_MATRIX["RSI"]
 
+    # MACD check
     if df['MACD'].iloc[-1] > 0:
         score += SCORING_MATRIX["MACD"]; consensus += 1
     else:
         score -= SCORING_MATRIX["MACD"]
 
-    # FIXED Bollinger comparison
-    close_val = float(df['Close'].iloc[-1])
-    boll_val = float(df['Bollinger_Mid'].iloc[-1])
-    if close_val > boll_val:
-        score += SCORING_MATRIX["Bollinger"]; consensus += 1
-    else:
-        score -= SCORING_MATRIX["Bollinger"]
+    # Bollinger check (safe)
+    close_val = df['Close'].iloc[-1]
+    boll_val = df['Bollinger_Mid'].iloc[-1]
+    if not pd.isna(boll_val):
+        if float(close_val) > float(boll_val):
+            score += SCORING_MATRIX["Bollinger"]; consensus += 1
+        else:
+            score -= SCORING_MATRIX["Bollinger"]
 
     # Candlestick patterns
     patterns = detect_patterns(df)
@@ -114,6 +117,7 @@ def score_stock(df):
     consensus_score = round((consensus / 4) * 100, 2)
 
     return normalized_score, consensus_score, patterns
+
 
     # Candlestick patterns
     patterns = detect_patterns(df)
