@@ -159,6 +159,12 @@ with tab2:
         fig, ax = plt.subplots()
         ax.plot(df.index, scores, label="Confidence")
         ax.plot(df.index, consensuses, label="Consensus")
+        
+        # Horizontal thresholds
+        ax.axhline(y=0, color='red', linestyle='--', linewidth=1, label="Confidence = 0")
+        ax.axhline(y=50, color='green', linestyle='--', linewidth=1, label="Consensus = 50")
+        
         ax.legend()
         st.pyplot(fig)
+
 
