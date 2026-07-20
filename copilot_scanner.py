@@ -49,32 +49,41 @@ def compute_indicators(df):
     return df
 
 def detect_patterns(df):
-    latest = df.iloc[-1]
-    prev = df.iloc[-2]
+    latest_close = df['Close'].iloc[-1]
+    latest_open  = df['Open'].iloc[-1]
+    latest_high  = df['High'].iloc[-1]
+    latest_low   = df['Low'].iloc[-1]
+
+    prev_close   = df['Close'].iloc[-2]
+    prev_open    = df['Open'].iloc[-2]
+    prev_high    = df['High'].iloc[-2]
+    prev_low     = df['Low'].iloc[-2]
+
     patterns = []
 
     # Bullish Engulfing
-    if latest['Close'] > latest['Open'] and prev['Close'] < prev['Open'] and latest['Close'] > prev['Open']:
+    if latest_close > latest_open and prev_close < prev_open and latest_close > prev_open:
         patterns.append("Bullish_Engulfing")
 
     # Bearish Engulfing
-    if latest['Close'] < latest['Open'] and prev['Close'] > prev['Open'] and latest['Close'] < prev['Open']:
+    if latest_close < latest_open and prev_close > prev_open and latest_close < prev_open:
         patterns.append("Bearish_Engulfing")
 
     # Doji
-    if abs(latest['Close'] - latest['Open']) <= (0.1 * (latest['High'] - latest['Low'])):
+    if abs(latest_close - latest_open) <= (0.1 * (latest_high - latest_low)):
         patterns.append("Doji")
 
     # Hammer
-    if (latest['Close'] > latest['Open']) and ((latest['Low'] < latest['Open']*0.98) or (latest['Low'] < latest['Close']*0.98)):
-        if (latest['High'] - latest['Close']) < (latest['Close'] - latest['Low']):
+    if (latest_close > latest_open) and ((latest_low < latest_open*0.98) or (latest_low < latest_close*0.98)):
+        if (latest_high - latest_close) < (latest_close - latest_low):
             patterns.append("Hammer")
 
     # Shooting Star
-    if (latest['Close'] < latest['Open']) and ((latest['High'] - latest['Close']) > 2*(latest['Close'] - latest['Low'])):
+    if (latest_close < latest_open) and ((latest_high - latest_close) > 2*(latest_close - latest_low)):
         patterns.append("Shooting_Star")
 
     return patterns
+
 
 def score_stock(df):
     score = 0
