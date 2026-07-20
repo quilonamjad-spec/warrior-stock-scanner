@@ -96,10 +96,24 @@ def score_stock(df):
     else:
         score -= SCORING_MATRIX["MACD"]
 
-    if df['Close'].iloc[-1] > df['Bollinger_Mid'].iloc[-1]:
+    # FIXED Bollinger comparison
+    close_val = float(df['Close'].iloc[-1])
+    boll_val = float(df['Bollinger_Mid'].iloc[-1])
+    if close_val > boll_val:
         score += SCORING_MATRIX["Bollinger"]; consensus += 1
     else:
         score -= SCORING_MATRIX["Bollinger"]
+
+    # Candlestick patterns
+    patterns = detect_patterns(df)
+    for p in patterns:
+        score += SCORING_MATRIX[p]
+
+    # Normalize to 100
+    normalized_score = round((score / MAX_SCORE) * 100, 2)
+    consensus_score = round((consensus / 4) * 100, 2)
+
+    return normalized_score, consensus_score, patterns
 
     # Candlestick patterns
     patterns = detect_patterns(df)
