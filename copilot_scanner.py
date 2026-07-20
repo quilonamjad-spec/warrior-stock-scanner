@@ -48,7 +48,7 @@ def compute_indicators(df):
 # --- PATTERNS ---
 def detect_patterns(df):
     if len(df) < 2:
-    return []
+        return []
 
     # Safe scalar extraction
     latest_close = df['Close'].iloc[-1].item()
