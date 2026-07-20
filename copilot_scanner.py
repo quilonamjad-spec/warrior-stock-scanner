@@ -137,7 +137,7 @@ with tab2:
     if custom_ticker:
         selected_tickers.append(custom_ticker.upper())
 
-    interval = st.selectbox("Interval", ["15m","30m","1h","1d"], index=0)
+    interval = st.selectbox("Interval", ["5m","15m","30m","1h","1d"], index=0)
 
     for ticker in selected_tickers:
         df = yf.download(ticker, period="1d", interval=interval)
