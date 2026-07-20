@@ -49,15 +49,15 @@ def compute_indicators(df):
     return df
 
 def detect_patterns(df):
-    latest_close = df['Close'].iloc[-1]
-    latest_open  = df['Open'].iloc[-1]
-    latest_high  = df['High'].iloc[-1]
-    latest_low   = df['Low'].iloc[-1]
+    latest_close = float(df['Close'].iloc[-1])
+    latest_open  = float(df['Open'].iloc[-1])
+    latest_high  = float(df['High'].iloc[-1])
+    latest_low   = float(df['Low'].iloc[-1])
 
-    prev_close   = df['Close'].iloc[-2]
-    prev_open    = df['Open'].iloc[-2]
-    prev_high    = df['High'].iloc[-2]
-    prev_low     = df['Low'].iloc[-2]
+    prev_close   = float(df['Close'].iloc[-2])
+    prev_open    = float(df['Open'].iloc[-2])
+    prev_high    = float(df['High'].iloc[-2])
+    prev_low     = float(df['Low'].iloc[-2])
 
     patterns = []
 
@@ -83,6 +83,7 @@ def detect_patterns(df):
         patterns.append("Shooting_Star")
 
     return patterns
+
 
 
 def score_stock(df):
