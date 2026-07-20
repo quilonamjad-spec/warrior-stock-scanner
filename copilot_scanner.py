@@ -84,12 +84,16 @@ def score_stock(df):
         score += SCORING_MATRIX["MACD"]; consensus += 1
     else:
         score -= SCORING_MATRIX["MACD"]
-    boll_val = df['Bollinger_Mid'].iloc[-1].item()
-    if not pd.isna(boll_val):
-        if df['Close'].iloc[-1] > boll_val:
+        
+    close_val = df['Close'].iloc[-1].item()
+    boll_val  = df['Bollinger_Mid'].iloc[-1].item()
+    
+    if pd.notna(boll_val):
+        if close_val > boll_val:
             score += SCORING_MATRIX["Bollinger"]; consensus += 1
         else:
             score -= SCORING_MATRIX["Bollinger"]
+
     patterns = detect_patterns(df)
     for p in patterns:
         score += SCORING_MATRIX[p]
