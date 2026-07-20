@@ -1,21 +1,18 @@
+import streamlit as st
 import yfinance as yf
 import pandas as pd
 import numpy as np
-import streamlit as st
 import matplotlib.pyplot as plt
 import mplfinance as mpf
 
-
 # --- PARAMETERS ---
 NIFTY500_TICKERS = ["RELIANCE.NS", "TCS.NS", "INFY.NS", "HDFCBANK.NS"]  # Add full Nifty 500 list
-LOOKBACK = 50  # number of days for indicators
 
 # Define scoring matrix (weights)
 SCORING_MATRIX = {
     "EMA20_vs_EMA50": 2,
     "RSI": 1,
     "MACD": 1,
-    "Volume": 1,
     "Bollinger": 1,
     "Bullish_Engulfing": 2,
     "Bearish_Engulfing": -2,
@@ -31,6 +28,18 @@ SCORING_MATRIX = {
 MAX_SCORE = sum(abs(v) for v in SCORING_MATRIX.values())
 
 # --- FUNCTIONS ---
+def compute_rsi(series, period=14):
+    delta = series.diff()
+    gain = delta.clip(lower=0)
+    loss = -delta.clip(upper=0)
+
+    avg_gain = gain.rolling(period).mean()
+    avg_loss = loss.rolling(period).mean()
+
+    rs = avg_gain / avg_loss
+    rsi = 100 - (100 / (1 + rs))
+    return rsi.fillna(0)
+
 def compute_indicators(df):
     df['EMA20'] = df['Close'].ewm(span=20).mean()
     df['EMA50'] = df['Close'].ewm(span=50).mean()
@@ -38,15 +47,6 @@ def compute_indicators(df):
     df['MACD'] = df['Close'].ewm(span=12).mean() - df['Close'].ewm(span=26).mean()
     df['Bollinger_Mid'] = df['Close'].rolling(20).mean()
     return df
-
-def compute_rsi(series, period=14):
-    delta = series.diff()
-    gain = np.where(delta > 0, delta, 0)
-    loss = np.where(delta < 0, -delta, 0)
-    avg_gain = pd.Series(gain).rolling(period).mean()
-    avg_loss = pd.Series(loss).rolling(period).mean()
-    rs = avg_gain / avg_loss
-    return 100 - (100 / (1 + rs))
 
 def detect_patterns(df):
     latest = df.iloc[-1]
@@ -121,17 +121,7 @@ def scan_market():
         results.append({"Ticker": ticker, "Confidence": score, "Consensus": consensus, "Patterns": patterns})
     return pd.DataFrame(results)
 
-# --- MAIN ---
-if __name__ == "__main__":
-    df_results = scan_market()
-    df_results = df_results.sort_values(by="Confidence", ascending=False)
-    print("Top 5 BUY candidates:")
-    print(df_results.head(5))
-    print("\nTop 5 SELL candidates:")
-    print(df_results.tail(5))
-from scanner import scan_market, score_stock, compute_indicators  # reuse your scanner functions
-
-# --- Streamlit App ---
+# --- STREAMLIT DASHBOARD ---
 st.set_page_config(page_title="Trading Scanner Dashboard", layout="wide")
 
 st.sidebar.title("Trading Scanner Controls")
