@@ -1,6 +1,47 @@
 import yfinance as yf
 import pandas as pd
 import numpy as np
+import streamlit as st
+import matplotlib.pyplot as plt
+import mplfinance as mpf
+
+from scanner import scan_market, score_stock, compute_indicators  # reuse your scanner functions
+
+# --- Streamlit App ---
+st.set_page_config(page_title="Trading Scanner Dashboard", layout="wide")
+
+st.sidebar.title("Trading Scanner Controls")
+scan_button = st.sidebar.button("Run Market Scan")
+
+if scan_button:
+    df_results = scan_market()
+    df_results = df_results.sort_values(by="Confidence", ascending=False)
+
+    st.subheader("Top 5 BUY Candidates")
+    st.dataframe(df_results.head(5))
+
+    st.subheader("Top 5 SELL Candidates")
+    st.dataframe(df_results.tail(5))
+
+    # Stock selection
+    st.sidebar.subheader("Track Specific Stocks")
+    selected_tickers = st.sidebar.multiselect("Choose stocks to track", df_results["Ticker"].tolist())
+
+    for ticker in selected_tickers:
+        st.markdown(f"### {ticker} Analysis")
+        df = yf.download(ticker, period="3mo", interval="1d")
+        df = compute_indicators(df)
+        score, consensus, patterns = score_stock(df)
+
+        st.write(f"**Confidence Score:** {score}/100")
+        st.write(f"**Consensus Score:** {consensus}/100")
+        st.write(f"**Patterns Detected:** {patterns}")
+
+        # Plot candlestick chart
+        fig, ax = plt.subplots(figsize=(10,5))
+        mpf.plot(df.tail(60), type='candle', mav=(20,50), volume=True, ax=ax)
+        st.pyplot(fig)
+
 
 # --- PARAMETERS ---
 NIFTY500_TICKERS = ["RELIANCE.NS", "TCS.NS", "INFY.NS", "HDFCBANK.NS"]  # Add full Nifty 500 list
