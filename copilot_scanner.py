@@ -98,14 +98,24 @@ def score_stock(df):
     else:
         score -= SCORING_MATRIX["MACD"]
 
-    # Bollinger check (safe)
-    close_val = df['Close'].iloc[-1].item()
-    boll_val = df['Bollinger_Mid'].iloc[-1].item()
-    if not pd.isna(boll_val):
-        if float(close_val) > float(boll_val):
+    # Bollinger check (safe scalar extraction)
+    close_val = df['Close'].iloc[-1]
+    boll_val = df['Bollinger_Mid'].iloc[-1]
+    
+    # Ensure scalar
+    if isinstance(close_val, pd.Series):
+        close_val = close_val.values[-1]
+    if isinstance(boll_val, pd.Series):
+        boll_val = boll_val.values[-1]
+    
+    if pd.notna(boll_val):
+        close_val = float(close_val)
+        boll_val = float(boll_val)
+        if close_val > boll_val:
             score += SCORING_MATRIX["Bollinger"]; consensus += 1
         else:
             score -= SCORING_MATRIX["Bollinger"]
+
 
     # Candlestick patterns
     patterns = detect_patterns(df)
