@@ -6,12 +6,13 @@ import matplotlib.pyplot as plt
 import mplfinance as mpf
 
 # --- PARAMETERS ---
-NIFTY500_TICKERS = ["BEL.NS","BHARTIARTL.NS","BOSCHLTD.NS","BPCL.NS","BRITANNIA.NS","CANBK.NS","CGPOWER.NS","CHOLAFIN.NS","CIPLA.NS",                  "COALINDIA.NS",
-                      "COLPAL.NS","CUMMINSIND.NS","DIVISLAB.NS","DLF.NS","DRREDDY.NS","GAIL.NS","GODREJCP.NS","GRASIM.NS","HAL.NS",                      "HCLTECH.NS",
-                      "HDFCAMC.NS","HDFCBANK.NS"]
-                        # Add full Nifty 500 list
+TICKERS = [
+    "RELIANCE.NS","TCS.NS","INFY.NS","HDFCBANK.NS","BHARTIARTL.NS","BPCL.NS",
+    "DIVISLAB.NS","DLF.NS","GAIL.NS","BEL.NS","COALINDIA.NS","DRREDDY.NS",
+    "CUMMINSIND.NS","ICICIBANK.NS","SBIN.NS","ASIANPAINT.NS","MARUTI.NS",
+    "SUNPHARMA.NS","ULTRACEMCO.NS","WIPRO.NS"
+]
 
-# Define scoring matrix (weights)
 SCORING_MATRIX = {
     "EMA20_vs_EMA50": 2,
     "RSI": 1,
@@ -21,24 +22,17 @@ SCORING_MATRIX = {
     "Bearish_Engulfing": -2,
     "Hammer": 2,
     "Shooting_Star": -2,
-    "Morning_Star": 2,
-    "Evening_Star": -2,
-    "Doji": 0,
-    "Three_White_Soldiers": 3,
-    "Three_Black_Crows": -3
+    "Doji": 0
 }
-
 MAX_SCORE = sum(abs(v) for v in SCORING_MATRIX.values())
 
-# --- FUNCTIONS ---
+# --- INDICATORS ---
 def compute_rsi(series, period=14):
     delta = series.diff()
     gain = delta.clip(lower=0)
     loss = -delta.clip(upper=0)
-
     avg_gain = gain.rolling(period).mean()
     avg_loss = loss.rolling(period).mean()
-
     rs = avg_gain / avg_loss
     rsi = 100 - (100 / (1 + rs))
     return rsi.fillna(0)
@@ -51,160 +45,98 @@ def compute_indicators(df):
     df['Bollinger_Mid'] = df['Close'].rolling(20).mean()
     return df
 
+# --- PATTERNS ---
 def detect_patterns(df):
-    # Extract scalars safely
+    # Safe scalar extraction
     latest_close = df['Close'].iloc[-1].item()
     latest_open  = df['Open'].iloc[-1].item()
     latest_high  = df['High'].iloc[-1].item()
     latest_low   = df['Low'].iloc[-1].item()
-
     prev_close   = df['Close'].iloc[-2].item()
     prev_open    = df['Open'].iloc[-2].item()
-    prev_high    = df['High'].iloc[-2].item()
-    prev_low     = df['Low'].iloc[-2].item()
-
-    # Skip if any are NaN
-    if any(pd.isna(val) for val in [latest_close, latest_open, latest_high, latest_low,
-                                    prev_close, prev_open, prev_high, prev_low]):
-        return []
 
     patterns = []
-
-    # Bullish Engulfing
     if latest_close > latest_open and prev_close < prev_open and latest_close > prev_open:
         patterns.append("Bullish_Engulfing")
-
-    # Bearish Engulfing
     if latest_close < latest_open and prev_close > prev_open and latest_close < prev_open:
         patterns.append("Bearish_Engulfing")
-
-    # Doji
     if abs(latest_close - latest_open) <= (0.1 * (latest_high - latest_low)):
         patterns.append("Doji")
-
-    # Hammer
     if (latest_close > latest_open) and ((latest_low < latest_open*0.98) or (latest_low < latest_close*0.98)):
         if (latest_high - latest_close) < (latest_close - latest_low):
             patterns.append("Hammer")
-
-    # Shooting Star
     if (latest_close < latest_open) and ((latest_high - latest_close) > 2*(latest_close - latest_low)):
         patterns.append("Shooting_Star")
-
     return patterns
 
-
-
+# --- SCORING ---
 def score_stock(df):
-    score = 0
-    consensus = 0
-
-    # EMA check
+    score, consensus = 0, 0
     if df['EMA20'].iloc[-1] > df['EMA50'].iloc[-1]:
         score += SCORING_MATRIX["EMA20_vs_EMA50"]; consensus += 1
     else:
         score -= SCORING_MATRIX["EMA20_vs_EMA50"]
-
-    # RSI check
     if df['RSI'].iloc[-1] > 50:
         score += SCORING_MATRIX["RSI"]; consensus += 1
     else:
         score -= SCORING_MATRIX["RSI"]
-
-    # MACD check
     if df['MACD'].iloc[-1] > 0:
         score += SCORING_MATRIX["MACD"]; consensus += 1
     else:
         score -= SCORING_MATRIX["MACD"]
-
-    # Bollinger check (safe scalar extraction)
-    close_val = df['Close'].iloc[-1]
     boll_val = df['Bollinger_Mid'].iloc[-1]
-    
-    # Ensure scalar
-    if isinstance(close_val, pd.Series):
-        close_val = close_val.values[-1]
-    if isinstance(boll_val, pd.Series):
-        boll_val = boll_val.values[-1]
-    
-    if pd.notna(boll_val):
-        close_val = float(close_val)
-        boll_val = float(boll_val)
-        if close_val > boll_val:
+    if not pd.isna(boll_val):
+        if df['Close'].iloc[-1] > boll_val:
             score += SCORING_MATRIX["Bollinger"]; consensus += 1
         else:
             score -= SCORING_MATRIX["Bollinger"]
-
-
-    # Candlestick patterns
     patterns = detect_patterns(df)
     for p in patterns:
         score += SCORING_MATRIX[p]
-
-    # Normalize to 100
     normalized_score = round((score / MAX_SCORE) * 100, 2)
     consensus_score = round((consensus / 4) * 100, 2)
-
-    return normalized_score, consensus_score, patterns
-
-
-    # Candlestick patterns
-    patterns = detect_patterns(df)
-    for p in patterns:
-        score += SCORING_MATRIX[p]
-
-    # Normalize to 100
-    normalized_score = round((score / MAX_SCORE) * 100, 2)
-    consensus_score = round((consensus / 4) * 100, 2)  # 4 indicators used
-
     return normalized_score, consensus_score, patterns
 
 def scan_market():
     results = []
-    for ticker in NIFTY500_TICKERS:
+    for ticker in TICKERS:
         df = yf.download(ticker, period="3mo", interval="1d")
         df = compute_indicators(df)
         score, consensus, patterns = score_stock(df)
-        results.append({"Ticker": ticker, "Confidence": score, "Consensus": consensus, "Patterns": patterns})
+        results.append({"Ticker": ticker, "Confidence": score, "Consensus": consensus, "Patterns": ", ".join(patterns)})
     return pd.DataFrame(results)
 
-# --- STREAMLIT DASHBOARD ---
-st.set_page_config(page_title="Trading Scanner Dashboard", layout="wide")
+# --- STREAMLIT APP ---
+st.set_page_config(page_title="Trading Dashboard", layout="wide")
+tab1, tab2 = st.tabs(["Scanner", "Tracker"])
 
-st.sidebar.title("Trading Scanner Controls")
-scan_button = st.sidebar.button("Run Market Scan")
+with tab1:
+    st.header("Market Scanner")
+    if st.button("Run Market Scan"):
+        df_results = scan_market()
+        buy_candidates = df_results[df_results['Confidence'] > 0].sort_values(by="Confidence", ascending=False).head(5)
+        sell_candidates = df_results[df_results['Confidence'] < 0].sort_values(by="Confidence", ascending=True).head(5)
+        st.subheader("Top 5 BUY Candidates")
+        st.dataframe(buy_candidates)
+        st.subheader("Top 5 SELL Candidates")
+        st.dataframe(sell_candidates)
 
-if scan_button:
-    df_results = scan_market()
-
-    # Buy = confidence > 0
-    buy_candidates = df_results[df_results['Confidence'] > 0].sort_values(by="Confidence", ascending=False).head(5)
-    
-    # Sell = confidence < 0
-    sell_candidates = df_results[df_results['Confidence'] < 0].sort_values(by="Confidence", ascending=True).head(5)
-    
-    st.subheader("Top 5 BUY Candidates")
-    st.dataframe(buy_candidates)
-    
-    st.subheader("Top 5 SELL Candidates")
-    st.dataframe(sell_candidates)
-
-
-    # Stock selection
-    st.sidebar.subheader("Track Specific Stocks")
-    selected_tickers = st.sidebar.multiselect("Choose stocks to track", df_results["Ticker"].tolist())
-
+with tab2:
+    st.header("Stock Tracker")
+    selected_tickers = st.multiselect("Choose stocks to track", TICKERS)
+    interval = st.selectbox("Interval", ["15m","30m","1h","1d"], index=0)
     for ticker in selected_tickers:
-        st.markdown(f"### {ticker} Analysis")
-        df = yf.download(ticker, period="3mo", interval="1d")
+        df = yf.download(ticker, period="1d", interval=interval)
         df = compute_indicators(df)
-        score, consensus, patterns = score_stock(df)
-
-        st.write(f"**Confidence Score:** {score}/100")
-        st.write(f"**Consensus Score:** {consensus}/100")
-        st.write(f"**Patterns Detected:** {patterns}")
-
-        # Plot candlestick chart
-        fig, ax = plt.subplots(figsize=(10,5))
-        mpf.plot(df.tail(60), type='candle', mav=(20,50), volume=True, ax=ax)
+        scores, consensuses = [], []
+        for i in range(len(df)):
+            sub_df = df.iloc[:i+1]
+            score, consensus, _ = score_stock(sub_df)
+            scores.append(score)
+            consensuses.append(consensus)
+        st.markdown(f"### {ticker}")
+        fig, ax = plt.subplots()
+        ax.plot(df.index, scores, label="Confidence")
+        ax.plot(df.index, consensuses, label="Consensus")
+        ax.legend()
         st.pyplot(fig)
