@@ -173,13 +173,19 @@ scan_button = st.sidebar.button("Run Market Scan")
 
 if scan_button:
     df_results = scan_market()
-    df_results = df_results.sort_values(by="Confidence", ascending=False)
 
+    # Buy = confidence > 0
+    buy_candidates = df_results[df_results['Confidence'] > 0].sort_values(by="Confidence", ascending=False).head(5)
+    
+    # Sell = confidence < 0
+    sell_candidates = df_results[df_results['Confidence'] < 0].sort_values(by="Confidence", ascending=True).head(5)
+    
     st.subheader("Top 5 BUY Candidates")
-    st.dataframe(df_results.head(5))
-
+    st.dataframe(buy_candidates)
+    
     st.subheader("Top 5 SELL Candidates")
-    st.dataframe(df_results.tail(5))
+    st.dataframe(sell_candidates)
+
 
     # Stock selection
     st.sidebar.subheader("Track Specific Stocks")
