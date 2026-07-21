@@ -73,50 +73,51 @@ def detect_patterns(df):
 
 # --- SCORING ---
 def score_stock(df):
-    score, consensus = 0, 0
+    score, bullish, bearish = 0, 0, 0
 
     # EMA check
     if df['EMA20'].iloc[-1] > df['EMA50'].iloc[-1]:
-        score += SCORING_MATRIX["EMA20_vs_EMA50"]
+        score += SCORING_MATRIX["EMA20_vs_EMA50"]; bullish += 1
     else:
-        score -= SCORING_MATRIX["EMA20_vs_EMA50"]
-    consensus += 1  # always count this indicator
+        score -= SCORING_MATRIX["EMA20_vs_EMA50"]; bearish += 1
 
     # RSI check
     if df['RSI'].iloc[-1] > 50:
-        score += SCORING_MATRIX["RSI"]
+        score += SCORING_MATRIX["RSI"]; bullish += 1
     else:
-        score -= SCORING_MATRIX["RSI"]
-    consensus += 1
+        score -= SCORING_MATRIX["RSI"]; bearish += 1
 
     # MACD check
     if df['MACD'].iloc[-1] > 0:
-        score += SCORING_MATRIX["MACD"]
+        score += SCORING_MATRIX["MACD"]; bullish += 1
     else:
-        score -= SCORING_MATRIX["MACD"]
-    consensus += 1
+        score -= SCORING_MATRIX["MACD"]; bearish += 1
 
     # Bollinger check
     close_val = df['Close'].iloc[-1].item()
     boll_val  = df['Bollinger_Mid'].iloc[-1].item()
     if pd.notna(boll_val):
         if close_val > boll_val:
-            score += SCORING_MATRIX["Bollinger"]
+            score += SCORING_MATRIX["Bollinger"]; bullish += 1
         else:
-            score -= SCORING_MATRIX["Bollinger"]
-        consensus += 1
+            score -= SCORING_MATRIX["Bollinger"]; bearish += 1
 
-    # Candlestick patterns
+    # Patterns
     patterns = detect_patterns(df)
     for p in patterns:
         score += SCORING_MATRIX[p]
-        consensus += 1  # count pattern as an indicator too
+        # classify pattern as bullish or bearish
+        if SCORING_MATRIX[p] > 0:
+            bullish += 1
+        else:
+            bearish += 1
 
-    # Normalize
     normalized_score = round((score / MAX_SCORE) * 100, 2)
-    consensus_score = round((consensus / (4 + len(patterns))) * 100, 2)
+    total_signals = bullish + bearish
+    consensus_score = round((max(bullish, bearish) / total_signals) * 100, 2) if total_signals else 0
 
     return normalized_score, consensus_score, patterns
+
 
 
 def scan_market(interval):
