@@ -150,43 +150,48 @@ with tab2:
 
     interval = st.selectbox("Interval", ["5m","15m","30m","1h","1d"], index=0)
 
-    for ticker in selected_tickers:
-        df = yf.download(ticker, period="1d", interval=interval)
-        df = compute_indicators(df)
+    # Refresh button
+    if st.button("Refresh Tracker"):
+        for ticker in selected_tickers:
+            df = yf.download(ticker, period="1d", interval=interval)
+            df = compute_indicators(df)
 
-        scores, consensuses = [], []
-        for i in range(len(df)):
-            sub_df = df.iloc[:i+1]
-            # Skip if not enough rows for patterns
-            if len(sub_df) < 2:
-                scores.append(0)
-                consensuses.append(0)
-                continue
-            score, consensus, _ = score_stock(sub_df)
-            scores.append(score)
-            consensuses.append(consensus)
+            scores, consensuses = [], []
+            for i in range(len(df)):
+                sub_df = df.iloc[:i+1]
+                if len(sub_df) < 2:
+                    scores.append(0)
+                    consensuses.append(0)
+                    continue
+                score, consensus, _ = score_stock(sub_df)
+                scores.append(score)
+                consensuses.append(consensus)
 
-        st.markdown(f"### {ticker}")
-        
-        fig, ax = plt.subplots()
-        ax.plot(df.index, scores, label="Confidence")
-        ax.plot(df.index, consensuses, label="Consensus")
-        
-        # Horizontal thresholds
-        ax.axhline(y=0, color='red', linestyle='--', linewidth=1, label="Confidence = 0")
-        ax.axhline(y=50, color='green', linestyle='--', linewidth=1, label="Consensus = 50")
-        
-        # Highlight strong buy points (Confidence >= 60 & Consensus >= 50)
-        for i in range(len(scores)):
-            if scores[i] >= 50 and consensuses[i] >= 50:
-                ax.scatter(df.index[i], scores[i], color='blue', s=120, marker='o', edgecolors='black', label="Strong Buy" if i == 0 else "")
-        
-        # Highlight strong sell points (Confidence <= -60 & Consensus >= 50)
-            if scores[i] <= -60 and consensuses[i] >= 50:
-                ax.scatter(df.index[i], scores[i], color='red', s=120, marker='o', edgecolors='black', label="Strong Sell" if i == 0 else "")
-        
-        ax.legend()
-        st.pyplot(fig)
+            st.markdown(f"### {ticker}")
+            
+            fig, ax = plt.subplots()
+            ax.plot(df.index, scores, label="Confidence")
+            ax.plot(df.index, consensuses, label="Consensus")
+            
+            # Horizontal thresholds
+            ax.axhline(y=0, color='red', linestyle='--', linewidth=1, label="Confidence = 0")
+            ax.axhline(y=50, color='green', linestyle='--', linewidth=1, label="Consensus = 50")
+            
+            # Highlight strong buy/sell points
+            for i in range(len(scores)):
+                if scores[i] >= 60 and consensuses[i] >= 50:
+                    ax.scatter(df.index[i], scores[i], color='blue', s=120, marker='o',
+                               edgecolors='black', label="Strong Buy" if i == 0 else "")
+                if scores[i] <= -60 and consensuses[i] >= 50:
+                    ax.scatter(df.index[i], scores[i], color='red', s=120, marker='o',
+                               edgecolors='black', label="Strong Sell" if i == 0 else "")
+            
+            ax.legend()
+            st.pyplot(fig)
+
+        # Timestamp for clarity
+        st.caption(f"Last refreshed: {pd.Timestamp.now().strftime('%H:%M:%S')}")
+
 
 
 
