@@ -4,14 +4,13 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import mplfinance as mpf
+import json
 
 # --- PARAMETERS ---
-TICKERS = [
-    "RELIANCE.NS","TCS.NS","INFY.NS","HDFCBANK.NS","BHARTIARTL.NS","BPCL.NS",
-    "DIVISLAB.NS","DLF.NS","GAIL.NS","BEL.NS","COALINDIA.NS","DRREDDY.NS",
-    "CUMMINSIND.NS","ICICIBANK.NS","SBIN.NS","ASIANPAINT.NS","MARUTI.NS",
-    "SUNPHARMA.NS","ULTRACEMCO.NS","WIPRO.NS"
-]
+# Load tickers from your JSON file
+with open("nifty500.json", "r") as f:
+    data = json.load(f)
+    TICKERS = data["tickers"]
 
 SCORING_MATRIX = {
     "EMA20_vs_EMA50": 2,
@@ -107,16 +106,19 @@ def score_stock(df):
 def scan_market(interval):
     results = []
     for ticker in TICKERS:
-        # intraday data for current day
-        df = yf.download(ticker, period="1d", interval=interval)
-        df = compute_indicators(df)
-        score, consensus, patterns = score_stock(df)
-        results.append({
-            "Ticker": ticker,
-            "Confidence": score,
-            "Consensus": consensus,
-            "Patterns": ", ".join(patterns)
-        })
+        try:
+            # intraday data for current day
+            df = yf.download(ticker, period="1d", interval=interval)
+            df = compute_indicators(df)
+            score, consensus, patterns = score_stock(df)
+            results.append({
+                "Ticker": ticker,
+                "Confidence": score,
+                "Consensus": consensus,
+                "Patterns": ", ".join(patterns)
+            })
+        except Exception:
+            continue
     return pd.DataFrame(results)
 
 
