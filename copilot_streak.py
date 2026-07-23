@@ -20,8 +20,8 @@ def check_market_trend(index="^NSEI"):
 def first_level_scan(df, market_trend):
     df["EMA9"] = df["Close"].ewm(span=9).mean()
     df["EMA21"] = df["Close"].ewm(span=21).mean()
-    df["VWAP"] = ta.volume.VolumeWeightedAveragePrice(
-        df["High"], df["Low"], df["Close"], df["Volume"]
+    typical_price = (df["High"] + df["Low"] + df["Close"]) / 3
+    df["VWAP"] = (typical_price * df["Volume"]).cumsum() / df["Volume"].cumsum()
     ).volume_weighted_average_price().values.ravel()
     df["ChaikinMF"] = ta.volume.ChaikinMoneyFlowIndicator(
         df["High"], df["Low"], df["Close"], df["Volume"]
