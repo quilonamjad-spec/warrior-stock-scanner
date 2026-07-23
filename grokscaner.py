@@ -60,25 +60,18 @@ def calculate_score_with_history(df):
     }, df, history
 
 # ================== SIDEBAR & SCAN ==================
-st.sidebar.header("Settings")
-tickers_input = st.sidebar.text_area(
-    "Watchlist (one per line)",
-    "RELIANCE.NS\nHDFCBANK.NS\nINFY.NS\nTCS.NS\nICICIBANK.NS\nSBIN.NS",
-    height=150
-)
-TICKERS = [t.strip() for t in tickers_input.split("\n") if t.strip()]
-
-interval = st.sidebar.selectbox("Interval", ["5m", "15m"], index=0)
-period = st.sidebar.selectbox("Data Period", ["5d", "10d"], index=0)
-
 if st.sidebar.button("🔄 Run Full Scan", type="primary"):
-    with st.spinner("Scanning market (this may take a few seconds)..."):
+    with st.spinner("Fetching data..."):
         results = []
         for ticker in TICKERS:
             try:
-                data = yf.download(ticker, period=period, interval=interval, progress=False)
-                if len(data) < 50:
-                    continue
+                # Try with prepost to get latest available data
+                data = yf.download(ticker, period=period, interval=interval, prepost=True, progress=False)
+                if len(data) < 30:
+                    # Fallback to daily if intraday fails
+                    data = yf.download(ticker, period="5d", interval="1d", progress=False)
+                    if len(data) < 5:
+                        continue
                 
                 score, details, _, score_history = calculate_score_with_history(data)
                 
@@ -86,18 +79,18 @@ if st.sidebar.button("🔄 Run Full Scan", type="primary"):
                     'Ticker': ticker.replace('.NS', ''),
                     'Current_Score': score,
                     'Price': round(data['Close'].iloc[-1], 2),
-                    'Change%': round((data['Close'].iloc[-1] / data['Close'].iloc[-2] - 1) * 100, 2),
+                    'Change%': round((data['Close'].iloc[-1] / data['Close'].iloc[-2] - 1) * 100, 2) if len(data) > 1 else 0,
                     'Details': details,
                     'Score_History': score_history
                 })
-            except Exception as e:
-                continue  # silently skip bad tickers
+            except:
+                continue
         
         if results:
             st.session_state.results = pd.DataFrame(results).sort_values(by='Current_Score', ascending=False)
-            st.success(f"Scan complete! {len(results)} stocks analyzed.")
+            st.success(f"✅ Scan complete! {len(results)} stocks analyzed.")
         else:
-            st.warning("No data returned. Market might be closed or try again.")
+            st.warning("⚠️ No data returned. Market is likely closed. Try again during trading hours (9:15 AM - 3:30 PM IST) or use daily interval for testing.")
 
 # ================== DISPLAY ==================
 if 'results' in st.session_state and not st.session_state.results.empty:
