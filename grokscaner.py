@@ -2,8 +2,6 @@ import streamlit as st
 import yfinance as yf
 import pandas as pd
 import ta as ta
-import plotly.graph_objects as go
-from datetime import datetime
 
 st.set_page_config(page_title="Day Trading Scanner", layout="wide")
 st.title("🚀 Day Trading Scanner - Score & Confidence")
@@ -26,7 +24,7 @@ if st.sidebar.button("🔄 Run Full Scan", type="primary"):
         for ticker in TICKERS:
             try:
                 data = yf.download(ticker, period=period, interval=interval, progress=False)
-                if len(data) < 30: continue
+                if len(data) < 40: continue
                 
                 score, details, df, score_history = calculate_score_with_history(data)
                 
@@ -36,16 +34,26 @@ if st.sidebar.button("🔄 Run Full Scan", type="primary"):
                     'Price': round(data['Close'].iloc[-1], 2),
                     'Change%': round((data['Close'].iloc[-1] / data['Close'].iloc[-2] - 1) * 100, 2),
                     'Details': details,
-                    'Data': df,
                     'Score_History': score_history
                 })
-            except: continue
+            except Exception as e:
+                st.error(f"Error with {ticker}: {e}")
+                continue
                 
-        st.session_state.results = pd.DataFrame(results).sort_values(by='Current_Score', ascending=False)
+        if results:
+            st.session_state.results = pd.DataFrame(results).sort_values(by='Current_Score', ascending=False)
+        else:
+            st.warning("No data returned. Try again.")
 
-# ================== CALCULATION WITH HISTORY ==================
-def calculate_score_with_history(df):
+# ================== CORE FUNCTIONS ==================
+def calculate_vwap(df):
     df = df.copy()
+    df['TP'] = (df['High'] + df['Low'] + df['Close']) / 3
+    df['TPV'] = df['TP'] * df['Volume']
+    df['VWAP'] = df['TPV'].cumsum() / df['Volume'].cumsum()
+    return df
+
+def calculate_score_with_history(df):
     df = calculate_vwap(df)
     df['EMA20'] = ta.ema(df['Close'], length=20)
     df['EMA50'] = ta.ema(df['Close'], length=50)
@@ -57,28 +65,32 @@ def calculate_score_with_history(df):
     scores = []
     confidences = []
     
-    for i in range(30, len(df)+1):
+    for i in range(40, len(df) + 1):   # start after enough data
         window = df.iloc[:i]
+        last = window.iloc[-1]
         
-        # Score
-        rsi_score = 8 if window['RSI'].iloc[-1] < 35 else 4 if window['RSI'].iloc[-1] < 45 else -8 if window['RSI'].iloc[-1] > 65 else -4 if window['RSI'].iloc[-1] > 55 else 0
-        macd_score = 9 if window['MACDh_12_26_9'].iloc[-1] > 0 else -9
-        vwap_score = 7 if window['Close'].iloc[-1] > window['VWAP'].iloc[-1] else -7
-        trend_score = 5 if window['EMA20'].iloc[-1] > window['EMA50'].iloc[-1] else -5
+        # Score calculation
+        rsi_score = 8 if last['RSI'] < 35 else 4 if last['RSI'] < 45 else -8 if last['RSI'] > 65 else -4 if last['RSI'] > 55 else 0
+        macd_score = 9 if last['MACDh_12_26_9'] > 0 else -9
+        vwap_score = 7 if last['Close'] > last['VWAP'] else -7
+        trend_score = 5 if last['EMA20'] > last['EMA50'] else -5
+        vol_ratio = last['Volume'] / window['Volume'].rolling(20).mean().iloc[-1] if window['Volume'].rolling(20).mean().iloc[-1] > 0 else 1
         
-        score = round(rsi_score*0.2 + macd_score*0.3 + vwap_score*0.25 + trend_score*0.15 + min((window['Volume'].iloc[-1]/window['Volume'].rolling(20).mean().iloc[-1])*4, 8)*0.1, 1)
+        score = round(rsi_score*0.2 + macd_score*0.3 + vwap_score*0.25 + trend_score*0.15 + min(vol_ratio*4, 8)*0.1, 1)
         scores.append(score)
         
-        # Confidence (0-100)
-        adx = window['ADX'].iloc[-1]
-        vol_ratio = window['Volume'].iloc[-1] / window['Volume'].rolling(20).mean().iloc[-1]
-        signal_align = 1 if (window['MACDh_12_26_9'].iloc[-1] > 0) == (window['Close'].iloc[-1] > window['VWAP'].iloc[-1]) else 0.5
-        confidence = min(100, max(0, (adx * 2) + (vol_ratio * 15) + (signal_align * 20)))
+        # Confidence
+        adx = last['ADX']
+        signal_align = 1 if (last['MACDh_12_26_9'] > 0) == (last['Close'] > last['VWAP']) else 0.6
+        confidence = min(100, max(0, adx * 2.2 + vol_ratio * 18 + signal_align * 15))
         
         confidences.append(confidence)
     
-    df['Score'] = [None]*30 + scores
-    df['Confidence'] = [None]*30 + confidences
+    history = pd.DataFrame({
+        'Time': df.index[40:],
+        'Score': scores,
+        'Confidence': confidences
+    })
     
     current_score = scores[-1]
     current_conf = confidences[-1]
@@ -90,19 +102,9 @@ def calculate_score_with_history(df):
         'VWAP_Dist': round(df['Close'].iloc[-1] - df['VWAP'].iloc[-1], 2)
     }
     
-    return current_score, details, df, pd.DataFrame({
-        'Time': df.index[30:],
-        'Score': scores,
-        'Confidence': confidences
-    })
+    return current_score, details, df, history
 
-def calculate_vwap(df):
-    df['TP'] = (df['High'] + df['Low'] + df['Close']) / 3
-    df['TPV'] = df['TP'] * df['Volume']
-    df['VWAP'] = df['TPV'].cumsum() / df['Volume'].cumsum()
-    return df
-
-# ================== DISPLAY ==================
+# ================== MAIN UI ==================
 if 'results' in st.session_state and not st.session_state.results.empty:
     df_results = st.session_state.results
     
@@ -119,39 +121,34 @@ if 'results' in st.session_state and not st.session_state.results.empty:
     
     st.divider()
     
-    selected = st.selectbox("Select stock", df_results['Ticker'])
+    selected = st.selectbox("Select stock for detailed view", df_results['Ticker'])
     stock = df_results[df_results['Ticker'] == selected].iloc[0]
     history = stock['Score_History']
     
-    # Current Score Display
-    score_color = "lime" if stock['Current_Score'] > 50 else "red" if stock['Current_Score'] < -50 else "orange"
+    # Big Score Display
+    score_color = "lime" if stock['Current_Score'] > 30 else "red" if stock['Current_Score'] < -30 else "orange"
     st.markdown(f"""
-    <h1 style="text-align: center; color: {score_color}; margin: 10px;">
-        {selected} — Score: <strong>{stock['Current_Score']}</strong> | Confidence: <strong>{stock['Details']['Confidence']}</strong>
+    <h1 style="text-align: center; color: {score_color}; margin: 20px 0;">
+        {selected} — Score: <strong>{stock['Current_Score']}</strong> | 
+        Confidence: <strong>{stock['Details']['Confidence']}</strong>
     </h1>
     """, unsafe_allow_html=True)
     
-    # Single Chart: Score + Confidence
+    # Single Chart
     fig = go.Figure()
+    fig.add_trace(go.Scatter(x=history['Time'], y=history['Score'], name="Score", line=dict(color="white", width=3)))
+    fig.add_trace(go.Scatter(x=history['Time'], y=history['Confidence'], name="Confidence", line=dict(color="cyan", width=3)))
     
-    fig.add_trace(go.Scatter(x=history['Time'], y=history['Score'], 
-                            name="Score", line=dict(color="white", width=3)))
-    fig.add_trace(go.Scatter(x=history['Time'], y=history['Confidence'], 
-                            name="Confidence", line=dict(color="cyan", width=3)))
-    
-    # Zero line
-    fig.add_hline(y=0, line_dash="dash", line_color="gray", annotation_text="Zero")
-    
-    # Buy / Sell zones
-    fig.add_hrect(y0=50, y1=100, fillcolor="green", opacity=0.1, line_width=0)
-    fig.add_hrect(y0=-100, y1=-50, fillcolor="red", opacity=0.1, line_width=0)
+    fig.add_hline(y=0, line_dash="dash", line_color="gray")
+    fig.add_hrect(y0=50, y1=100, fillcolor="green", opacity=0.12, line_width=0)
+    fig.add_hrect(y0=-100, y1=-50, fillcolor="red", opacity=0.12, line_width=0)
     
     fig.update_layout(
-        height=600,
-        title="Score Evolution & Market Confidence (Every 5 min)",
+        height=650,
+        title="Score & Confidence Evolution (5-min intervals)",
         yaxis_title="Value",
         hovermode="x unified",
-        legend=dict(orientation="h", yanchor="bottom", y=1.02)
+        legend=dict(orientation="h", y=1.1)
     )
     
     st.plotly_chart(fig, use_container_width=True)
@@ -159,4 +156,4 @@ if 'results' in st.session_state and not st.session_state.results.empty:
     st.json(stock['Details'])
 
 else:
-    st.info("Click 'Run Full Scan' to start")
+    st.info("Click **Run Full Scan** to start")
