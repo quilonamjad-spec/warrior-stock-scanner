@@ -59,7 +59,8 @@ def calculate_score_with_history(df):
         vol_mean = window['Volume'].rolling(20).mean().iloc[-1]
         vol_ratio = last['Volume'] / vol_mean if vol_mean > 0 else 1.0
         
-        score = round(rsi_score*0.2 + macd_score*0.3 + vwap_score*0.25 + trend_score*0.15 + min(vol_ratio*4, 8)*0.1, 1)
+        raw_score = rsi_score*0.2 + macd_score*0.3 + vwap_score*0.25 + trend_score*0.15 + min(vol_ratio*4, 8)*0.1
+        score = round(raw_score * 10, 1)   # Now scaled to roughly -100 to +100
         scores.append(score)
         
         adx_val = last['ADX'] if not pd.isna(last['ADX']) else 20
