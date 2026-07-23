@@ -50,6 +50,38 @@ def first_level_scan(df, market_trend):
                (vol_val > vol_ma20) and \
                (ema9_val > ema21_val) and \
                (cmf_val > 0)
+def compute_rsi(series, period=14):
+    delta = series.diff()
+    gain = delta.clip(lower=0)
+    loss = -delta.clip(upper=0)
+    avg_gain = gain.ewm(alpha=1/period, min_periods=period).mean()
+    avg_loss = loss.ewm(alpha=1/period, min_periods=period).mean()
+    rs = avg_gain / avg_loss
+    rsi = 100 - (100 / (1 + rs))
+    return rsi
+
+def compute_macd(series, fast=12, slow=26, signal=9):
+    ema_fast = series.ewm(span=fast).mean()
+    ema_slow = series.ewm(span=slow).mean()
+    macd = ema_fast - ema_slow
+    signal_line = macd.ewm(span=signal).mean()
+    return macd, signal_line
+
+def compute_adx(high, low, close, period=14):
+    plus_dm = high.diff()
+    minus_dm = low.diff()
+    plus_dm[plus_dm < 0] = 0
+    minus_dm[minus_dm > 0] = 0
+    tr1 = pd.DataFrame(high - low)
+    tr2 = pd.DataFrame(abs(high - close.shift()))
+    tr3 = pd.DataFrame(abs(low - close.shift()))
+    tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
+    atr = tr.rolling(period).mean()
+    plus_di = 100 * (plus_dm.ewm(alpha=1/period).mean() / atr)
+    minus_di = abs(100 * (minus_dm.ewm(alpha=1/period).mean() / atr))
+    dx = (abs(plus_di - minus_di) / (plus_di + minus_di)) * 100
+    adx = dx.ewm(alpha=1/period).mean()
+    return adx
 
 
 def scan_and_rank(tickers, market_trend):
@@ -61,8 +93,9 @@ def scan_and_rank(tickers, market_trend):
         if not first_level_scan(df, market_trend):
             continue
 
-        df["RSI"] = ta.momentum.RSIIndicator(df["Close"]).rsi().values.ravel()
-        df["MACD"] = ta.trend.MACD(df["Close"]).macd().values.ravel()
+        df["RSI"] = compute_rsi(df["Close"])  # custom function
+        df["MACD"], df["MACD_signal"] = compute_macd(df["Close"])  # custom function
+
 
         trade_score = int((df["RSI"].iloc[-1] / 100) * 50 + (df["MACD"].iloc[-1] > 0) * 50)
         confidence_score = int(df["RSI"].iloc[-1])
@@ -74,9 +107,10 @@ def scan_and_rank(tickers, market_trend):
 def calculate_scores(df):
     df["EMA9"] = df["Close"].ewm(span=9).mean()
     df["EMA21"] = df["Close"].ewm(span=21).mean()
-    df["RSI"] = ta.momentum.RSIIndicator(df["Close"]).rsi().values.ravel()
-    df["MACD"] = ta.trend.MACD(df["Close"]).macd().values.ravel()
-    df["ADX"] = ta.trend.ADXIndicator(df["High"], df["Low"], df["Close"]).adx().values.ravel()
+    df["RSI"] = compute_rsi(df["Close"])
+    df["MACD"], df["MACD_signal"] = compute_macd(df["Close"])
+    df["ADX"] = compute_adx(df["High"], df["Low"], df["Close"])  # custom function
+
 
     df["TradeScore"] = (
         (df["EMA9"] > df["EMA21"]).astype(int) * 20 +
