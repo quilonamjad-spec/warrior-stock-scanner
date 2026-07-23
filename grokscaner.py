@@ -1,51 +1,12 @@
 import streamlit as st
 import yfinance as yf
 import pandas as pd
-import ta as ta
+import pandas_ta as ta
 
 st.set_page_config(page_title="Day Trading Scanner", layout="wide")
 st.title("🚀 Day Trading Scanner - Score & Confidence")
 
-# Sidebar
-st.sidebar.header("Settings")
-tickers_input = st.sidebar.text_area(
-    "Watchlist (one per line)",
-    "RELIANCE.NS\nHDFCBANK.NS\nINFY.NS\nTCS.NS\nICICIBANK.NS\nSBIN.NS",
-    height=150
-)
-TICKERS = [t.strip() for t in tickers_input.split("\n") if t.strip()]
-
-interval = st.sidebar.selectbox("Interval", ["5m", "15m"], index=0)
-period = st.sidebar.selectbox("Data Period", ["5d", "10d"], index=0)
-
-if st.sidebar.button("🔄 Run Full Scan", type="primary"):
-    with st.spinner("Scanning..."):
-        results = []
-        for ticker in TICKERS:
-            try:
-                data = yf.download(ticker, period=period, interval=interval, progress=False)
-                if len(data) < 40: continue
-                
-                score, details, df, score_history = calculate_score_with_history(data)
-                
-                results.append({
-                    'Ticker': ticker.replace('.NS', ''),
-                    'Current_Score': score,
-                    'Price': round(data['Close'].iloc[-1], 2),
-                    'Change%': round((data['Close'].iloc[-1] / data['Close'].iloc[-2] - 1) * 100, 2),
-                    'Details': details,
-                    'Score_History': score_history
-                })
-            except Exception as e:
-                st.error(f"Error with {ticker}: {e}")
-                continue
-                
-        if results:
-            st.session_state.results = pd.DataFrame(results).sort_values(by='Current_Score', ascending=False)
-        else:
-            st.warning("No data returned. Try again.")
-
-# ================== CORE FUNCTIONS ==================
+# ================== HELPER FUNCTIONS ==================
 def calculate_vwap(df):
     df = df.copy()
     df['TP'] = (df['High'] + df['Low'] + df['Close']) / 3
@@ -65,13 +26,13 @@ def calculate_score_with_history(df):
     scores = []
     confidences = []
     
-    for i in range(40, len(df) + 1):   # start after enough data
+    for i in range(40, len(df) + 1):
         window = df.iloc[:i]
         last = window.iloc[-1]
         
-        # Score calculation
+        # Score
         rsi_score = 8 if last['RSI'] < 35 else 4 if last['RSI'] < 45 else -8 if last['RSI'] > 65 else -4 if last['RSI'] > 55 else 0
-        macd_score = 9 if last['MACDh_12_26_9'] > 0 else -9
+        macd_score = 9 if last.get('MACDh_12_26_9', 0) > 0 else -9
         vwap_score = 7 if last['Close'] > last['VWAP'] else -7
         trend_score = 5 if last['EMA20'] > last['EMA50'] else -5
         vol_ratio = last['Volume'] / window['Volume'].rolling(20).mean().iloc[-1] if window['Volume'].rolling(20).mean().iloc[-1] > 0 else 1
@@ -80,10 +41,9 @@ def calculate_score_with_history(df):
         scores.append(score)
         
         # Confidence
-        adx = last['ADX']
-        signal_align = 1 if (last['MACDh_12_26_9'] > 0) == (last['Close'] > last['VWAP']) else 0.6
+        adx = last.get('ADX', 20)
+        signal_align = 1 if (last.get('MACDh_12_26_9', 0) > 0) == (last['Close'] > last['VWAP']) else 0.6
         confidence = min(100, max(0, adx * 2.2 + vol_ratio * 18 + signal_align * 15))
-        
         confidences.append(confidence)
     
     history = pd.DataFrame({
@@ -92,30 +52,65 @@ def calculate_score_with_history(df):
         'Confidence': confidences
     })
     
-    current_score = scores[-1]
-    current_conf = confidences[-1]
-    
-    details = {
-        'Current_Score': round(current_score, 1),
-        'Confidence': round(current_conf, 1),
+    return scores[-1], {
+        'Current_Score': round(scores[-1], 1),
+        'Confidence': round(confidences[-1], 1),
         'RSI': round(df['RSI'].iloc[-1], 1),
         'VWAP_Dist': round(df['Close'].iloc[-1] - df['VWAP'].iloc[-1], 2)
-    }
-    
-    return current_score, details, df, history
+    }, df, history
 
-# ================== MAIN UI ==================
+# ================== SIDEBAR & SCAN ==================
+st.sidebar.header("Settings")
+tickers_input = st.sidebar.text_area(
+    "Watchlist (one per line)",
+    "RELIANCE.NS\nHDFCBANK.NS\nINFY.NS\nTCS.NS\nICICIBANK.NS\nSBIN.NS",
+    height=150
+)
+TICKERS = [t.strip() for t in tickers_input.split("\n") if t.strip()]
+
+interval = st.sidebar.selectbox("Interval", ["5m", "15m"], index=0)
+period = st.sidebar.selectbox("Data Period", ["5d", "10d"], index=0)
+
+if st.sidebar.button("🔄 Run Full Scan", type="primary"):
+    with st.spinner("Scanning market (this may take a few seconds)..."):
+        results = []
+        for ticker in TICKERS:
+            try:
+                data = yf.download(ticker, period=period, interval=interval, progress=False)
+                if len(data) < 50:
+                    continue
+                
+                score, details, _, score_history = calculate_score_with_history(data)
+                
+                results.append({
+                    'Ticker': ticker.replace('.NS', ''),
+                    'Current_Score': score,
+                    'Price': round(data['Close'].iloc[-1], 2),
+                    'Change%': round((data['Close'].iloc[-1] / data['Close'].iloc[-2] - 1) * 100, 2),
+                    'Details': details,
+                    'Score_History': score_history
+                })
+            except Exception as e:
+                continue  # silently skip bad tickers
+        
+        if results:
+            st.session_state.results = pd.DataFrame(results).sort_values(by='Current_Score', ascending=False)
+            st.success(f"Scan complete! {len(results)} stocks analyzed.")
+        else:
+            st.warning("No data returned. Market might be closed or try again.")
+
+# ================== DISPLAY ==================
 if 'results' in st.session_state and not st.session_state.results.empty:
     df_results = st.session_state.results
     
     col1, col2 = st.columns(2)
     with col1:
-        st.subheader("🔥 Top 5 Buy")
+        st.subheader("🔥 Top 5 Buy Phase")
         for _, r in df_results.head(5).iterrows():
             st.metric(r['Ticker'], f"₹{r['Price']}", f"{r['Change%']}% | Score {r['Current_Score']}")
     
     with col2:
-        st.subheader("❄️ Top 5 Sell")
+        st.subheader("❄️ Top 5 Sell Phase")
         for _, r in df_results.tail(5).iterrows():
             st.metric(r['Ticker'], f"₹{r['Price']}", f"{r['Change%']}% | Score {r['Current_Score']}")
     
@@ -125,7 +120,7 @@ if 'results' in st.session_state and not st.session_state.results.empty:
     stock = df_results[df_results['Ticker'] == selected].iloc[0]
     history = stock['Score_History']
     
-    # Big Score Display
+    # Big Score
     score_color = "lime" if stock['Current_Score'] > 30 else "red" if stock['Current_Score'] < -30 else "orange"
     st.markdown(f"""
     <h1 style="text-align: center; color: {score_color}; margin: 20px 0;">
@@ -135,6 +130,7 @@ if 'results' in st.session_state and not st.session_state.results.empty:
     """, unsafe_allow_html=True)
     
     # Single Chart
+    import plotly.graph_objects as go
     fig = go.Figure()
     fig.add_trace(go.Scatter(x=history['Time'], y=history['Score'], name="Score", line=dict(color="white", width=3)))
     fig.add_trace(go.Scatter(x=history['Time'], y=history['Confidence'], name="Confidence", line=dict(color="cyan", width=3)))
@@ -145,10 +141,10 @@ if 'results' in st.session_state and not st.session_state.results.empty:
     
     fig.update_layout(
         height=650,
-        title="Score & Confidence Evolution (5-min intervals)",
+        title="Score & Confidence Evolution (Updated every 5 minutes)",
         yaxis_title="Value",
         hovermode="x unified",
-        legend=dict(orientation="h", y=1.1)
+        legend=dict(orientation="h", y=1.05)
     )
     
     st.plotly_chart(fig, use_container_width=True)
@@ -156,4 +152,4 @@ if 'results' in st.session_state and not st.session_state.results.empty:
     st.json(stock['Details'])
 
 else:
-    st.info("Click **Run Full Scan** to start")
+    st.info("👆 Click **Run Full Scan** to start")
