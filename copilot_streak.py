@@ -60,9 +60,9 @@ def scan_and_rank(tickers, market_trend):
 def calculate_scores(df):
     df["EMA9"] = df["Close"].ewm(span=9).mean()
     df["EMA21"] = df["Close"].ewm(span=21).mean()
-    df["RSI"] = ta.momentum.RSIIndicator(df["Close"]).rsi()
-    df["MACD"] = ta.trend.MACD(df["Close"]).macd()
-    df["ADX"] = ta.trend.ADXIndicator(df["High"], df["Low"], df["Close"]).adx()
+    df["RSI"] = ta.momentum.RSIIndicator(df["Close"]).rsi().values.ravel()
+    df["MACD"] = ta.trend.MACD(df["Close"]).macd().values.ravel()
+    df["ADX"] = ta.trend.ADXIndicator(df["High"], df["Low"], df["Close"]).adx().values.ravel()
 
     df["TradeScore"] = (
         (df["EMA9"] > df["EMA21"]).astype(int) * 20 +
