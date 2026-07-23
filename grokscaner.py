@@ -26,8 +26,9 @@ def calculate_score_with_history(df):
     
     scores = []
     confidences = []
+    min_candles = 25   # ← Reduced from 40
     
-    for i in range(40, len(df) + 1):
+    for i in range(min_candles, len(df) + 1):
         window = df.iloc[:i]
         last = window.iloc[-1]
         
@@ -46,7 +47,7 @@ def calculate_score_with_history(df):
         confidences.append(confidence)
     
     history = pd.DataFrame({
-        'Time': df.index[40:],
+        'Time': df.index[min_candles:],
         'Score': scores,
         'Confidence': confidences
     })
