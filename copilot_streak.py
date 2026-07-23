@@ -31,14 +31,14 @@ def first_level_scan(df, market_trend):
     df["ChaikinMF"] = money_flow_volume.cumsum() / df["Volume"].cumsum()
 
     # Extract scalars
-    close_val = df["Close"].iloc[-1]
-    vwap_val = df["VWAP"].iloc[-1]
-    vol_val = df["Volume"].iloc[-1]
-    vol_ma20 = df["Volume"].rolling(20).mean().iloc[-1]
-    ema9_val = df["EMA9"].iloc[-1]
-    ema21_val = df["EMA21"].iloc[-1]
-    cmf_val = df["ChaikinMF"].iloc[-1]
-    high10_val = df["High"].rolling(10).max().iloc[-1]
+    close_val = df["Close"].iloc[-1].item()
+    vwap_val = df["VWAP"].iloc[-1].item()
+    vol_val = df["Volume"].iloc[-1].item()
+    vol_ma20 = df["Volume"].rolling(20).mean().iloc[-1].item()
+    ema9_val = df["EMA9"].iloc[-1].item()
+    ema21_val = df["EMA21"].iloc[-1].item()
+    cmf_val = df["ChaikinMF"].iloc[-1].item()
+    high10_val = df["High"].rolling(10).max().iloc[-1].item()
 
     if market_trend == "Down":
         return (ema9_val < ema21_val) and \
