@@ -61,8 +61,8 @@ def scan_and_rank(tickers, market_trend):
         if not first_level_scan(df, market_trend):
             continue
 
-        df["RSI"] = ta.momentum.RSIIndicator(df["Close"]).rsi()
-        df["MACD"] = ta.trend.MACD(df["Close"]).macd()
+        df["RSI"] = ta.momentum.RSIIndicator(df["Close"]).rsi().values.ravel()
+        df["MACD"] = ta.trend.MACD(df["Close"]).macd().values.ravel()
 
         trade_score = int((df["RSI"].iloc[-1] / 100) * 50 + (df["MACD"].iloc[-1] > 0) * 50)
         confidence_score = int(df["RSI"].iloc[-1])
