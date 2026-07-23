@@ -2,6 +2,7 @@ import streamlit as st
 import yfinance as yf
 import pandas as pd
 import ta as ta
+import plotly.graph_objects as go
 
 st.set_page_config(page_title="Day Trading Scanner", layout="wide")
 st.title("🚀 Day Trading Scanner - Score & Confidence")
@@ -30,17 +31,15 @@ def calculate_score_with_history(df):
         window = df.iloc[:i]
         last = window.iloc[-1]
         
-        # Score
         rsi_score = 8 if last['RSI'] < 35 else 4 if last['RSI'] < 45 else -8 if last['RSI'] > 65 else -4 if last['RSI'] > 55 else 0
         macd_score = 9 if last.get('MACDh_12_26_9', 0) > 0 else -9
         vwap_score = 7 if last['Close'] > last['VWAP'] else -7
-        trend_score = 5 if last['EMA20'] > last['EMA50'] else -5
-        vol_ratio = last['Volume'] / window['Volume'].rolling(20).mean().iloc[-1] if window['Volume'].rolling(20).mean().iloc[-1] > 0 else 1
+        trend_score = 5 if last.get('EMA20', 0) > last.get('EMA50', 0) else -5
+        vol_ratio = last['Volume'] / window['Volume'].rolling(20).mean().iloc[-1] if window['Volume'].rolling(20).mean().iloc[-1] > 0 else 1.0
         
         score = round(rsi_score*0.2 + macd_score*0.3 + vwap_score*0.25 + trend_score*0.15 + min(vol_ratio*4, 8)*0.1, 1)
         scores.append(score)
         
-        # Confidence
         adx = last.get('ADX', 20)
         signal_align = 1 if (last.get('MACDh_12_26_9', 0) > 0) == (last['Close'] > last['VWAP']) else 0.6
         confidence = min(100, max(0, adx * 2.2 + vol_ratio * 18 + signal_align * 15))
@@ -59,19 +58,27 @@ def calculate_score_with_history(df):
         'VWAP_Dist': round(df['Close'].iloc[-1] - df['VWAP'].iloc[-1], 2)
     }, df, history
 
-# ================== SIDEBAR & SCAN ==================
+# ================== SIDEBAR ==================
+st.sidebar.header("Settings")
+tickers_input = st.sidebar.text_area(
+    "Watchlist (one per line)",
+    "RELIANCE.NS\nHDFCBANK.NS\nINFY.NS\nTCS.NS\nICICIBANK.NS\nSBIN.NS",
+    height=150
+)
+TICKERS = [t.strip() for t in tickers_input.split("\n") if t.strip()]
+
+interval = st.sidebar.selectbox("Interval", ["5m", "15m"], index=0)
+period = st.sidebar.selectbox("Data Period", ["5d", "10d"], index=0)
+
+# ================== SCAN BUTTON ==================
 if st.sidebar.button("🔄 Run Full Scan", type="primary"):
-    with st.spinner("Fetching data..."):
+    with st.spinner("Fetching latest data..."):
         results = []
         for ticker in TICKERS:
             try:
-                # Try with prepost to get latest available data
                 data = yf.download(ticker, period=period, interval=interval, prepost=True, progress=False)
-                if len(data) < 30:
-                    # Fallback to daily if intraday fails
-                    data = yf.download(ticker, period="5d", interval="1d", progress=False)
-                    if len(data) < 5:
-                        continue
+                if len(data) < 40:
+                    continue
                 
                 score, details, _, score_history = calculate_score_with_history(data)
                 
@@ -88,11 +95,11 @@ if st.sidebar.button("🔄 Run Full Scan", type="primary"):
         
         if results:
             st.session_state.results = pd.DataFrame(results).sort_values(by='Current_Score', ascending=False)
-            st.success(f"✅ Scan complete! {len(results)} stocks analyzed.")
+            st.success(f"✅ Scan complete! {len(results)} stocks processed.")
         else:
-            st.warning("⚠️ No data returned. Market is likely closed. Try again during trading hours (9:15 AM - 3:30 PM IST) or use daily interval for testing.")
+            st.warning("⚠️ No sufficient data. Try during market hours or change to daily interval for testing.")
 
-# ================== DISPLAY ==================
+# ================== MAIN DISPLAY ==================
 if 'results' in st.session_state and not st.session_state.results.empty:
     df_results = st.session_state.results
     
@@ -109,11 +116,10 @@ if 'results' in st.session_state and not st.session_state.results.empty:
     
     st.divider()
     
-    selected = st.selectbox("Select stock for detailed view", df_results['Ticker'])
+    selected = st.selectbox("Select stock", df_results['Ticker'])
     stock = df_results[df_results['Ticker'] == selected].iloc[0]
     history = stock['Score_History']
     
-    # Big Score
     score_color = "lime" if stock['Current_Score'] > 30 else "red" if stock['Current_Score'] < -30 else "orange"
     st.markdown(f"""
     <h1 style="text-align: center; color: {score_color}; margin: 20px 0;">
@@ -122,8 +128,6 @@ if 'results' in st.session_state and not st.session_state.results.empty:
     </h1>
     """, unsafe_allow_html=True)
     
-    # Single Chart
-    import plotly.graph_objects as go
     fig = go.Figure()
     fig.add_trace(go.Scatter(x=history['Time'], y=history['Score'], name="Score", line=dict(color="white", width=3)))
     fig.add_trace(go.Scatter(x=history['Time'], y=history['Confidence'], name="Confidence", line=dict(color="cyan", width=3)))
@@ -134,7 +138,7 @@ if 'results' in st.session_state and not st.session_state.results.empty:
     
     fig.update_layout(
         height=650,
-        title="Score & Confidence Evolution (Updated every 5 minutes)",
+        title="Score & Confidence Evolution (5-min)",
         yaxis_title="Value",
         hovermode="x unified",
         legend=dict(orientation="h", y=1.05)
@@ -145,4 +149,4 @@ if 'results' in st.session_state and not st.session_state.results.empty:
     st.json(stock['Details'])
 
 else:
-    st.info("👆 Click **Run Full Scan** to start")
+    st.info("Click **Run Full Scan** on the sidebar to begin.")
