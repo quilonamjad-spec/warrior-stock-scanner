@@ -26,9 +26,11 @@ def calculate_score_with_history(df):
     
     scores = []
     confidences = []
-    min_candles = 25   # ← Reduced from 40
+    min_candles = 25
     
-    for i in range(min_candles, len(df) + 1):
+    start_idx = max(min_candles, len(df) - 120)  # Use recent data including yesterday
+    
+    for i in range(start_idx, len(df) + 1):
         window = df.iloc[:i]
         last = window.iloc[-1]
         
@@ -36,6 +38,7 @@ def calculate_score_with_history(df):
         macd_score = 9 if last.get('MACDh_12_26_9', 0) > 0 else -9
         vwap_score = 7 if last['Close'] > last['VWAP'] else -7
         trend_score = 5 if last.get('EMA20', 0) > last.get('EMA50', 0) else -5
+        
         vol_ratio = last['Volume'] / window['Volume'].rolling(20).mean().iloc[-1] if window['Volume'].rolling(20).mean().iloc[-1] > 0 else 1.0
         
         score = round(rsi_score*0.2 + macd_score*0.3 + vwap_score*0.25 + trend_score*0.15 + min(vol_ratio*4, 8)*0.1, 1)
@@ -47,16 +50,18 @@ def calculate_score_with_history(df):
         confidences.append(confidence)
     
     history = pd.DataFrame({
-        'Time': df.index[min_candles:],
+        'Time': df.index[start_idx:],
         'Score': scores,
-        'Confidence': confidences
+        'Confidence': confidences,
+        'Price': df['Close'].iloc[start_idx:].values
     })
     
     return scores[-1], {
         'Current_Score': round(scores[-1], 1),
         'Confidence': round(confidences[-1], 1),
         'RSI': round(df['RSI'].iloc[-1], 1),
-        'VWAP_Dist': round(df['Close'].iloc[-1] - df['VWAP'].iloc[-1], 2)
+        'VWAP_Dist': round(df['Close'].iloc[-1] - df['VWAP'].iloc[-1], 2),
+        'Candles_Used': len(history)
     }, df, history
 
 # ================== SIDEBAR ==================
@@ -69,16 +74,16 @@ tickers_input = st.sidebar.text_area(
 TICKERS = [t.strip() for t in tickers_input.split("\n") if t.strip()]
 
 interval = st.sidebar.selectbox("Interval", ["5m", "15m"], index=0)
-period = st.sidebar.selectbox("Data Period", ["5d", "10d","1d"], index=0)
+period = st.sidebar.selectbox("Data Period", ["10d", "5d"], index=0)
 
-# ================== SCAN BUTTON ==================
+# ================== SCAN ==================
 if st.sidebar.button("🔄 Run Full Scan", type="primary"):
-    with st.spinner("Fetching latest data..."):
+    with st.spinner("Fetching data (including yesterday)..."):
         results = []
         for ticker in TICKERS:
             try:
                 data = yf.download(ticker, period=period, interval=interval, prepost=True, progress=False)
-                if len(data) < 40:
+                if len(data) < 30:
                     continue
                 
                 score, details, _, score_history = calculate_score_with_history(data)
@@ -96,9 +101,9 @@ if st.sidebar.button("🔄 Run Full Scan", type="primary"):
         
         if results:
             st.session_state.results = pd.DataFrame(results).sort_values(by='Current_Score', ascending=False)
-            st.success(f"✅ Scan complete! {len(results)} stocks processed.")
+            st.success(f"✅ Scan complete! {len(results)} stocks analyzed.")
         else:
-            st.warning("⚠️ No sufficient data. Try during market hours or change to daily interval for testing.")
+            st.warning("⚠️ Not enough data. Try during market hours or increase Data Period.")
 
 # ================== MAIN DISPLAY ==================
 if 'results' in st.session_state and not st.session_state.results.empty:
@@ -125,24 +130,35 @@ if 'results' in st.session_state and not st.session_state.results.empty:
     st.markdown(f"""
     <h1 style="text-align: center; color: {score_color}; margin: 20px 0;">
         {selected} — Score: <strong>{stock['Current_Score']}</strong> | 
-        Confidence: <strong>{stock['Details']['Confidence']}</strong>
+        Confidence: <strong>{stock['Details']['Confidence']}</strong> | 
+        Candles: {stock['Details']['Candles_Used']}
     </h1>
     """, unsafe_allow_html=True)
     
+    # ================== CHART WITH PRICE + SCORE + CONFIDENCE ==================
     fig = go.Figure()
-    fig.add_trace(go.Scatter(x=history['Time'], y=history['Score'], name="Score", line=dict(color="white", width=3)))
-    fig.add_trace(go.Scatter(x=history['Time'], y=history['Confidence'], name="Confidence", line=dict(color="cyan", width=3)))
+    
+    # Price (Candlestick-style line) on secondary axis
+    fig.add_trace(go.Scatter(x=history['Time'], y=history['Price'], 
+                            name="Price", line=dict(color="yellow", width=2), yaxis="y2"))
+    
+    # Score & Confidence
+    fig.add_trace(go.Scatter(x=history['Time'], y=history['Score'], 
+                            name="Score", line=dict(color="white", width=3)))
+    fig.add_trace(go.Scatter(x=history['Time'], y=history['Confidence'], 
+                            name="Confidence", line=dict(color="cyan", width=3)))
     
     fig.add_hline(y=0, line_dash="dash", line_color="gray")
     fig.add_hrect(y0=50, y1=100, fillcolor="green", opacity=0.12, line_width=0)
     fig.add_hrect(y0=-100, y1=-50, fillcolor="red", opacity=0.12, line_width=0)
     
     fig.update_layout(
-        height=650,
-        title="Score & Confidence Evolution (5-min)",
-        yaxis_title="Value",
+        height=680,
+        title="Price Movement vs Score & Confidence",
+        yaxis_title="Score / Confidence",
+        yaxis2=dict(title="Price (₹)", overlaying='y', side='right'),
         hovermode="x unified",
-        legend=dict(orientation="h", y=1.05)
+        legend=dict(orientation="h", y=1.1)
     )
     
     st.plotly_chart(fig, use_container_width=True)
@@ -150,4 +166,4 @@ if 'results' in st.session_state and not st.session_state.results.empty:
     st.json(stock['Details'])
 
 else:
-    st.info("Click **Run Full Scan** on the sidebar to begin.")
+    st.info("Click **Run Full Scan** to start")
