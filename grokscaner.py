@@ -69,7 +69,7 @@ def calculate_score_with_history(df):
         confidences.append(confidence)
     
     
-     history = pd.DataFrame({
+    history = pd.DataFrame({
         'Time': df.index[start_idx:],
         'Score': scores,
         'Confidence': confidences,
