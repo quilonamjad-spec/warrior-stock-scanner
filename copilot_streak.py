@@ -147,18 +147,19 @@ st.title("📊 Adaptive NIFTY500 Trading Assistant")
 tab1, tab2 = st.tabs(["Market Scanner", "Continuous Tracking"])
 
 # Tab 1: Scanner
+
 with tab1:
     st.header("Market Scanner")
-    market_trend = check_market_trend()
-    st.write(f"📈 Market Trend: **{market_trend}**")
-
-    ranked_df = scan_and_rank(tickers, market_trend)
-
-    st.subheader("Ranked Stocks (after first-level scan)")
-    st.dataframe(ranked_df)
-
-    st.subheader("Top 5 Picks")
-    st.write(ranked_df.head(5))
+    if st.button("Run Scan"):
+        market_trend = check_market_trend()
+        st.write(f"📈 Market Trend: **{market_trend}**")
+        ranked_df = scan_and_rank(tickers, market_trend)
+        
+        st.subheader("Ranked Stocks (after first-level scan)")
+        st.dataframe(ranked_df)
+        
+        st.subheader("Top 5 Picks")
+        st.write(ranked_df.head(5))
 
 # Tab 2: Continuous Tracking
 with tab2:
