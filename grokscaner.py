@@ -68,6 +68,7 @@ def calculate_score_with_history(df):
         confidence = min(100, max(0, adx_val * 2.2 + vol_ratio * 18 + signal_align * 15))
         confidences.append(confidence)
     
+    
     history = pd.DataFrame({
         'Time': df.index[start_idx:],
         'Score': scores,
@@ -75,13 +76,20 @@ def calculate_score_with_history(df):
         'Price': df['Close'].iloc[start_idx:].values
     })
     
-    return scores[-1], {
-        'Current_Score': round(scores[-1], 1),
-        'Confidence': round(confidences[-1], 1),
-        'RSI': round(df['RSI'].iloc[-1], 1),
-        'VWAP_Dist': round(df['Close'].iloc[-1] - df['VWAP'].iloc[-1], 2),
-        'Candles_Used': len(history)
-    }, df, history
+    # === Restrict chart to only today's data ===
+        today = pd.Timestamp.now().normalize()
+        history = history[history['Time'].dt.date == today.date()].copy()
+        
+        if history.empty:  # fallback if market just opened
+            history = history.tail(30)
+        
+        return scores[-1], {
+            'Current_Score': round(scores[-1], 1),
+            'Confidence': round(confidences[-1], 1),
+            'RSI': round(df['RSI'].iloc[-1], 1),
+            'VWAP_Dist': round(df['Close'].iloc[-1] - df['VWAP'].iloc[-1], 2),
+            'Candles_Used': len(history)
+        }, df, history
 
 # ================== SIDEBAR ==================
 st.sidebar.header("Settings")
