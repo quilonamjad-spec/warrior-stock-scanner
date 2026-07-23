@@ -28,7 +28,7 @@ def calculate_score_with_history(df):
     confidences = []
     min_candles = 25
     
-    start_idx = max(min_candles, len(df) - 120)  # Use recent data including yesterday
+    start_idx = max(min_candles, len(df) - 150)
     
     for i in range(start_idx, len(df) + 1):
         window = df.iloc[:i]
@@ -74,16 +74,30 @@ tickers_input = st.sidebar.text_area(
 TICKERS = [t.strip() for t in tickers_input.split("\n") if t.strip()]
 
 interval = st.sidebar.selectbox("Interval", ["5m", "15m"], index=0)
-period = st.sidebar.selectbox("Data Period", ["10d", "5d"], index=0)
+period = st.sidebar.selectbox("Data Period", ["10d", "5d", "2d"], index=0)
 
 # ================== SCAN ==================
 if st.sidebar.button("🔄 Run Full Scan", type="primary"):
-    with st.spinner("Fetching data (including yesterday)..."):
+    with st.spinner("Fetching data..."):
         results = []
+        debug_info = []
+        
         for ticker in TICKERS:
             try:
                 data = yf.download(ticker, period=period, interval=interval, prepost=True, progress=False)
-                if len(data) < 30:
+                candles = len(data)
+                
+                if candles < 30:
+                    # Fallback to daily
+                    data = yf.download(ticker, period="10d", interval="1d", progress=False)
+                    candles = len(data)
+                    note = f"{ticker}: Only {candles} daily candles available (intraday failed)"
+                else:
+                    note = f"{ticker}: {candles} candles ({interval})"
+                
+                debug_info.append(note)
+                
+                if candles < 25:
                     continue
                 
                 score, details, _, score_history = calculate_score_with_history(data)
@@ -96,14 +110,20 @@ if st.sidebar.button("🔄 Run Full Scan", type="primary"):
                     'Details': details,
                     'Score_History': score_history
                 })
-            except:
+            except Exception as e:
+                debug_info.append(f"{ticker}: Error - {str(e)}")
                 continue
+        
+        # Show debug info
+        st.sidebar.write("### Data Status")
+        for info in debug_info:
+            st.sidebar.write(info)
         
         if results:
             st.session_state.results = pd.DataFrame(results).sort_values(by='Current_Score', ascending=False)
             st.success(f"✅ Scan complete! {len(results)} stocks analyzed.")
         else:
-            st.warning("⚠️ Not enough data. Try during market hours or increase Data Period.")
+            st.warning("⚠️ No stocks had enough data. Check the sidebar for details.")
 
 # ================== MAIN DISPLAY ==================
 if 'results' in st.session_state and not st.session_state.results.empty:
@@ -135,14 +155,10 @@ if 'results' in st.session_state and not st.session_state.results.empty:
     </h1>
     """, unsafe_allow_html=True)
     
-    # ================== CHART WITH PRICE + SCORE + CONFIDENCE ==================
     fig = go.Figure()
     
-    # Price (Candlestick-style line) on secondary axis
     fig.add_trace(go.Scatter(x=history['Time'], y=history['Price'], 
                             name="Price", line=dict(color="yellow", width=2), yaxis="y2"))
-    
-    # Score & Confidence
     fig.add_trace(go.Scatter(x=history['Time'], y=history['Score'], 
                             name="Score", line=dict(color="white", width=3)))
     fig.add_trace(go.Scatter(x=history['Time'], y=history['Confidence'], 
@@ -154,7 +170,7 @@ if 'results' in st.session_state and not st.session_state.results.empty:
     
     fig.update_layout(
         height=680,
-        title="Price Movement vs Score & Confidence",
+        title="Price vs Score & Confidence",
         yaxis_title="Score / Confidence",
         yaxis2=dict(title="Price (₹)", overlaying='y', side='right'),
         hovermode="x unified",
@@ -166,4 +182,4 @@ if 'results' in st.session_state and not st.session_state.results.empty:
     st.json(stock['Details'])
 
 else:
-    st.info("Click **Run Full Scan** to start")
+    st.info("Click **Run Full Scan** to start. Check the sidebar for data status after scanning.")
