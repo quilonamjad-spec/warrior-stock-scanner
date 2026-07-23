@@ -22,10 +22,10 @@ def first_level_scan(df, market_trend):
     df["EMA21"] = df["Close"].ewm(span=21).mean()
     df["VWAP"] = ta.volume.VolumeWeightedAveragePrice(
         df["High"], df["Low"], df["Close"], df["Volume"]
-    ).volume_weighted_average_price()
+    ).volume_weighted_average_price().values.ravel()
     df["ChaikinMF"] = ta.volume.ChaikinMoneyFlowIndicator(
         df["High"], df["Low"], df["Close"], df["Volume"]
-    ).chaikin_money_flow()
+    ).chaikin_money_flow().values.ravel()
 
     if market_trend == "Down":
         return (df["EMA9"].iloc[-1] < df["EMA21"].iloc[-1]) and \
