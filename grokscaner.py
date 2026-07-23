@@ -74,7 +74,7 @@ def calculate_score_with_history(df):
         'Score': scores,
         'Confidence': confidences,
         'Price': df['Close'].iloc[start_idx:].values
-    })
+        })
     
     # === Restrict chart to only today's data ===
         today = pd.Timestamp.now().normalize()
