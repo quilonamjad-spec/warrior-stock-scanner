@@ -23,9 +23,9 @@ def first_level_scan(df, market_trend):
     typical_price = (df["High"] + df["Low"] + df["Close"]) / 3
     df["VWAP"] = (typical_price * df["Volume"]).cumsum() / df["Volume"].cumsum()
     
-    df["ChaikinMF"] = ta.volume.ChaikinMoneyFlowIndicator(
-        df["High"], df["Low"], df["Close"], df["Volume"]
-    ).chaikin_money_flow().values.ravel()
+    money_flow_multiplier = ((df["Close"] - df["Low"]) - (df["High"] - df["Close"])) / (df["High"] - df["Low"])
+    money_flow_volume = money_flow_multiplier * df["Volume"]
+    df["ChaikinMF"] = money_flow_volume.cumsum() / df["Volume"].cumsum()
 
     if market_trend == "Down":
         return (df["EMA9"].iloc[-1] < df["EMA21"].iloc[-1]) and \
