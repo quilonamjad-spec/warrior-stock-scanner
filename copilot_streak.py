@@ -167,22 +167,24 @@ with tab2:
     st.header("Trend Dashboard for Committed Trades")
     mode = st.radio("Select Mode", ["Intraday", "Long-term"])
 
-    if "ranked_df" in st.session_state:
+    if "ranked_df" in st.session_state and not st.session_state["ranked_df"].empty:
         shortlist = st.session_state["ranked_df"]["Ticker"].tolist()
         selected = st.multiselect("Pick at least 2 committed trades", shortlist)
     else:
         st.warning("⚠️ Run the Market Scanner first.")
+        selected = []  # <-- ensure selected is always defined
+
     custom = st.text_input("Add custom stock symbol (e.g., SBIN.NS)")
     watchlist = selected + ([custom] if custom else [])
 
     if len(watchlist) >= 2:
         for t in watchlist:
             if mode == "Intraday":
-                df = fetch_data(t, period="1d", interval="5m")  # intraday data
+                df = fetch_data(t, period="1d", interval="5m")
             else:
-                df = fetch_data(t, period="3mo", interval="1d")  # long-term daily data
+                df = fetch_data(t, period="3mo", interval="1d")
 
-            if df.empty: 
+            if df.empty:
                 continue
 
             df = calculate_scores(df)
@@ -190,7 +192,6 @@ with tab2:
             st.subheader(f"Trend for {t} ({mode})")
             st.line_chart(df[["TradeScore", "ConfidenceScore"]])
 
-            # Decision summary
             avg_trade = df["TradeScore"].mean()
             avg_conf = df["ConfidenceScore"].mean()
             trend_trade = "Up" if df["TradeScore"].iloc[-1] > df["TradeScore"].iloc[-5] else "Down"
@@ -198,3 +199,4 @@ with tab2:
 
             st.write(f"📊 Avg Trade Score: {avg_trade:.1f}, Trend: {trend_trade}")
             st.write(f"📊 Avg Confidence Score: {avg_conf:.1f}, Trend: {trend_conf}")
+
