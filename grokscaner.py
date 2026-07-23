@@ -1,7 +1,7 @@
 import streamlit as st
 import yfinance as yf
 import pandas as pd
-import pandas_ta as ta
+import ta as ta
 
 st.set_page_config(page_title="Day Trading Scanner", layout="wide")
 st.title("🚀 Day Trading Scanner - Score & Confidence")
