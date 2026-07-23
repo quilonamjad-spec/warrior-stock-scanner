@@ -154,6 +154,7 @@ with tab1:
         market_trend = check_market_trend()
         st.write(f"📈 Market Trend: **{market_trend}**")
         ranked_df = scan_and_rank(tickers, market_trend)
+        st.session_state["ranked_df"] = ranked_df
         
         st.subheader("Ranked Stocks (after first-level scan)")
         st.dataframe(ranked_df)
@@ -166,8 +167,11 @@ with tab2:
     st.header("Trend Dashboard for Committed Trades")
     mode = st.radio("Select Mode", ["Intraday", "Long-term"])
 
-    shortlist = ranked_df["Ticker"].tolist()
-    selected = st.multiselect("Pick at least 2 committed trades", shortlist, help="Add custom tickers below")
+    if "ranked_df" in st.session_state:
+        shortlist = st.session_state["ranked_df"]["Ticker"].tolist()
+        selected = st.multiselect("Pick at least 2 committed trades", shortlist)
+    else:
+        st.warning("⚠️ Run the Market Scanner first.")
     custom = st.text_input("Add custom stock symbol (e.g., SBIN.NS)")
     watchlist = selected + ([custom] if custom else [])
 
