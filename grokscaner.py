@@ -93,7 +93,7 @@ tickers_input = st.sidebar.text_area(
 TICKERS = [t.strip() for t in tickers_input.split("\n") if t.strip()]
 
 interval = st.sidebar.selectbox("Interval", ["5m", "15m"], index=0)
-period = st.sidebar.selectbox("Data Period", ["10d", "5d", "2d"], index=0)
+period = st.sidebar.selectbox("Data Period", ["10d", "5d", "1d"], index=0)
 
 # ================== SCAN ==================
 if st.sidebar.button("🔄 Run Full Scan", type="primary"):
