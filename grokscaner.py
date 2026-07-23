@@ -10,6 +10,8 @@ st.title("🚀 Day Trading Scanner - Score & Confidence")
 # ================== HELPER FUNCTIONS ==================
 def calculate_vwap(df):
     df = df.copy()
+    if isinstance(df.columns, pd.MultiIndex):
+        df.columns = df.columns.get_level_values(0)
     df['TP'] = (df['High'] + df['Low'] + df['Close']) / 3
     df['TPV'] = df['TP'] * df['Volume']
     df['VWAP'] = df['TPV'].cumsum() / df['Volume'].cumsum()
@@ -27,7 +29,6 @@ def calculate_score_with_history(df):
     scores = []
     confidences = []
     min_candles = 25
-    
     start_idx = max(min_candles, len(df) - 150)
     
     for i in range(start_idx, len(df) + 1):
@@ -85,6 +86,8 @@ if st.sidebar.button("🔄 Run Full Scan", type="primary"):
         for ticker in TICKERS:
             try:
                 data = yf.download(ticker, period=period, interval=interval, prepost=True, progress=False)
+                if isinstance(data.columns, pd.MultiIndex):
+                    data.columns = data.columns.get_level_values(0)
                 candles = len(data)
                 
                 if candles < 30:
