@@ -35,13 +35,20 @@ def calculate_score_with_history(df):
     )
     df['VWAP'] = vwap.volume_weighted_average_price()
     
+    # Drop rows that still have NaN in key columns
+    df = df.dropna(subset=['EMA20', 'EMA50', 'RSI', 'MACD_hist', 'ADX', 'VWAP']).copy()
+    
+    if len(df) < 25:
+        raise ValueError("Not enough valid candles after cleaning")
+    
     scores = []
     confidences = []
-    min_candles = 25
-    start_idx = max(min_candles, len(df) - 150)
     
-    for i in range(start_idx, len(df) + 1):
-        window = df.iloc[:i]
+    # Start after we have enough clean data
+    start_idx = 25
+    
+    for i in range(start_idx, len(df)):
+        window = df.iloc[:i+1]
         last = window.iloc[-1]
         
         rsi_score = 8 if last['RSI'] < 35 else 4 if last['RSI'] < 45 else -8 if last['RSI'] > 65 else -4 if last['RSI'] > 55 else 0
@@ -49,7 +56,8 @@ def calculate_score_with_history(df):
         vwap_score = 7 if last['Close'] > last['VWAP'] else -7
         trend_score = 5 if last['EMA20'] > last['EMA50'] else -5
         
-        vol_ratio = last['Volume'] / window['Volume'].rolling(20).mean().iloc[-1] if window['Volume'].rolling(20).mean().iloc[-1] > 0 else 1.0
+        vol_mean = window['Volume'].rolling(20).mean().iloc[-1]
+        vol_ratio = last['Volume'] / vol_mean if vol_mean > 0 else 1.0
         
         score = round(rsi_score*0.2 + macd_score*0.3 + vwap_score*0.25 + trend_score*0.15 + min(vol_ratio*4, 8)*0.1, 1)
         scores.append(score)
