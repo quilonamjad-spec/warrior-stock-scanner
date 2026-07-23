@@ -2,6 +2,7 @@ import streamlit as st
 import yfinance as yf
 import pandas as pd
 import plotly.graph_objects as go
+import json
 from ta.trend import EMAIndicator, MACD, ADXIndicator
 from ta.momentum import RSIIndicator
 from ta.volume import VolumeWeightedAveragePrice
@@ -93,12 +94,22 @@ def calculate_score_with_history(df):
 
 # ================== SIDEBAR ==================
 st.sidebar.header("Settings")
-tickers_input = st.sidebar.text_area(
-    "Watchlist (one per line)",
-    "RELIANCE.NS\nHDFCBANK.NS\nINFY.NS\nTCS.NS\nICICIBANK.NS\nSBIN.NS",
-    height=150
-)
-TICKERS = [t.strip() for t in tickers_input.split("\n") if t.strip()]
+
+# Load Nifty 500 from JSON
+try:
+    with open("nifty500.json", "r") as f:          # ← change filename if needed
+        data = json.load(f)
+        TICKERS = data["tickers"]
+    st.sidebar.success(f"Loaded {len(TICKERS)} stocks from Nifty 500")
+except Exception as e:
+    st.sidebar.error(f"Could not load JSON: {e}")
+    TICKERS = ["RELIANCE.NS", "HDFCBANK.NS", "INFY.NS", "TCS.NS"]  # fallback
+
+# Optional: still allow manual override
+use_custom = st.sidebar.checkbox("Use custom watchlist instead")
+if use_custom:
+    tickers_input = st.sidebar.text_area("Custom Watchlist (one per line)", height=150)
+    TICKERS = [t.strip() for t in tickers_input.split("\n") if t.strip()]
 
 interval = st.sidebar.selectbox("Interval", ["5m", "15m"], index=0)
 period = st.sidebar.selectbox("Data Period", ["10d", "5d", "1d"], index=0)
