@@ -20,23 +20,37 @@ def check_market_trend(index="^NSEI"):
 def first_level_scan(df, market_trend):
     df["EMA9"] = df["Close"].ewm(span=9).mean()
     df["EMA21"] = df["Close"].ewm(span=21).mean()
+
+    # Manual VWAP
     typical_price = (df["High"] + df["Low"] + df["Close"]) / 3
     df["VWAP"] = (typical_price * df["Volume"]).cumsum() / df["Volume"].cumsum()
-    
+
+    # Manual Chaikin MF
     money_flow_multiplier = ((df["Close"] - df["Low"]) - (df["High"] - df["Close"])) / (df["High"] - df["Low"])
     money_flow_volume = money_flow_multiplier * df["Volume"]
     df["ChaikinMF"] = money_flow_volume.cumsum() / df["Volume"].cumsum()
 
+    # Extract scalars
+    close_val = df["Close"].iloc[-1]
+    vwap_val = df["VWAP"].iloc[-1]
+    vol_val = df["Volume"].iloc[-1]
+    vol_ma20 = df["Volume"].rolling(20).mean().iloc[-1]
+    ema9_val = df["EMA9"].iloc[-1]
+    ema21_val = df["EMA21"].iloc[-1]
+    cmf_val = df["ChaikinMF"].iloc[-1]
+    high10_val = df["High"].rolling(10).max().iloc[-1]
+
     if market_trend == "Down":
-        return (df["EMA9"].iloc[-1] < df["EMA21"].iloc[-1]) and \
-               (df["Close"].iloc[-1] < df["High"].rolling(10).max().iloc[-1]) and \
-               (df["ChaikinMF"].iloc[-1] < 0) and \
-               (df["Volume"].iloc[-1] < df["Volume"].rolling(20).mean().iloc[-1])
+        return (ema9_val < ema21_val) and \
+               (close_val < high10_val) and \
+               (cmf_val < 0) and \
+               (vol_val < vol_ma20)
     else:  # Market Up
-        return (df["Close"].iloc[-1] > df["VWAP"].iloc[-1]) and \
-               (df["Volume"].iloc[-1] > df["Volume"].rolling(20).mean().iloc[-1]) and \
-               (df["EMA9"].iloc[-1] > df["EMA21"].iloc[-1]) and \
-               (df["ChaikinMF"].iloc[-1] > 0)
+        return (close_val > vwap_val) and \
+               (vol_val > vol_ma20) and \
+               (ema9_val > ema21_val) and \
+               (cmf_val > 0)
+
 
 def scan_and_rank(tickers, market_trend):
     results = []
