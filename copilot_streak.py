@@ -76,7 +76,7 @@ def compute_adx(high, low, close, period=14):
     # True Range
     tr1 = high - low
     tr2 = (high - close.shift()).abs()
-   tr3 = (low - close.shift()).abs()
+    tr3 = (low - close.shift()).abs()
     tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)  # multi-col DF
     atr = tr.rolling(period).mean()
 
