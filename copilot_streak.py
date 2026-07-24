@@ -67,28 +67,28 @@ def compute_macd(series, fast=12, slow=26, signal=9):
     signal_line = macd.ewm(span=signal).mean()
     return macd, signal_line
 
-#def compute_adx(high, low, close, period=14):
-#    plus_dm = high.diff()
-#    minus_dm = low.diff()
-#    plus_dm[plus_dm < 0] = 0
-#    minus_dm[minus_dm > 0] = 0
+def compute_adx(high, low, close, period=14):
+    plus_dm = high.diff()
+    minus_dm = low.diff()
+    plus_dm[plus_dm < 0] = 0
+    minus_dm[minus_dm > 0] = 0
 
     # True Range
-#    tr1 = high - low
-#    tr2 = (high - close.shift()).abs()
-#   tr3 = (low - close.shift()).abs()
-#    tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)  # multi-col DF
-#    atr = tr.rolling(period).mean()
+    tr1 = high - low
+    tr2 = (high - close.shift()).abs()
+   tr3 = (low - close.shift()).abs()
+    tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)  # multi-col DF
+    atr = tr.rolling(period).mean()
 
     # Directional Indicators
-#    plus_di = 100 * (plus_dm.ewm(alpha=1/period).mean() / atr)
-#    minus_di = abs(100 * (minus_dm.ewm(alpha=1/period).mean() / atr))
+    plus_di = 100 * (plus_dm.ewm(alpha=1/period).mean() / atr)
+    minus_di = abs(100 * (minus_dm.ewm(alpha=1/period).mean() / atr))
 
     # DX and ADX
-#    dx = (abs(plus_di - minus_di) / (plus_di + minus_di)) * 100
-#    adx = dx.ewm(alpha=1/period).mean()
+    dx = (abs(plus_di - minus_di) / (plus_di + minus_di)) * 100
+    adx = dx.ewm(alpha=1/period).mean()
 
-#    return adx  # <-- returns a Series, not a DataFrame
+    return adx  # <-- returns a Series, not a DataFrame
 
 
 
@@ -118,18 +118,18 @@ def calculate_scores(df):
     df["EMA21"] = df["Close"].ewm(span=21).mean()
     df["RSI"] = compute_rsi(df["Close"])
     df["MACD"], df["MACD_signal"] = compute_macd(df["Close"])
- #   df["ADX"] = compute_adx(df["High"], df["Low"], df["Close"])  # custom function
+    df["ADX"] = compute_adx(df["High"], df["Low"], df["Close"])  # custom function
 
 
     df["TradeScore"] = (
         (df["EMA9"] > df["EMA21"]).astype(int) * 20 +
         (df["RSI"] > 60).astype(int) * 20 +
         (df["MACD"] > 0).astype(int) * 20 +
-     #   (df["ADX"] > 25).astype(int) * 20 +
+        (df["ADX"] > 25).astype(int) * 20 +
         (df["Close"] > df["Open"]).astype(int) * 20
     )
 
-    df["ConfidenceScore"] = (df["RSI"]/100 * 50) #+ (df["ADX"]/50 * 50)
+    df["ConfidenceScore"] = (df["RSI"]/100 * 50) + (df["ADX"]/50 * 50)
     return df
 
 # -------------------------------
