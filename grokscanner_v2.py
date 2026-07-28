@@ -14,9 +14,11 @@ st.title("📈 My Personal Stock Watchlist – Score & Confidence")
 def calculate_score_with_history(df):
     df = df.copy()
     
+    # Fix MultiIndex columns from yfinance
     if isinstance(df.columns, pd.MultiIndex):
         df.columns = df.columns.get_level_values(0)
     
+    # Indicators
     df['EMA20'] = EMAIndicator(close=df['Close'], window=20).ema_indicator()
     df['EMA50'] = EMAIndicator(close=df['Close'], window=50).ema_indicator()
     df['RSI'] = RSIIndicator(close=df['Close'], window=14).rsi()
@@ -33,19 +35,22 @@ def calculate_score_with_history(df):
     )
     df['VWAP'] = vwap.volume_weighted_average_price()
     
+    # Drop rows with NaN in key columns
     df = df.dropna(subset=['EMA20', 'EMA50', 'RSI', 'MACD_hist', 'ADX', 'VWAP']).copy()
     
     if len(df) < 25:
-        raise ValueError("Not enough valid candles")
+        raise ValueError("Not enough valid candles after cleaning")
     
     scores = []
     confidences = []
+    
     start_idx = 25
     
     for i in range(start_idx, len(df)):
         window = df.iloc[:i+1]
         last = window.iloc[-1]
         
+        # ========== SCORE CALCULATION (unchanged) ==========
         rsi_score = 8 if last['RSI'] < 35 else 4 if last['RSI'] < 45 else -8 if last['RSI'] > 65 else -4 if last['RSI'] > 55 else 0
         macd_score = 9 if last['MACD_hist'] > 0 else -9
         vwap_score = 7 if last['Close'] > last['VWAP'] else -7
@@ -54,15 +59,48 @@ def calculate_score_with_history(df):
         vol_mean = window['Volume'].rolling(20).mean().iloc[-1]
         vol_ratio = last['Volume'] / vol_mean if vol_mean > 0 else 1.0
         
-        raw_score = rsi_score*0.2 + macd_score*0.3 + vwap_score*0.25 + trend_score*0.15 + min(vol_ratio*4, 8)*0.1
+        raw_score = (
+            rsi_score * 0.2 +
+            macd_score * 0.3 +
+            vwap_score * 0.25 +
+            trend_score * 0.15 +
+            min(vol_ratio * 4, 8) * 0.1
+        )
         score = round(raw_score * 10, 1)
         scores.append(score)
         
-        adx_val = last['ADX'] if not pd.isna(last['ADX']) else 20
-        signal_align = 1 if (last['MACD_hist'] > 0) == (last['Close'] > last['VWAP']) else 0.6
-        confidence = min(100, max(0, adx_val * 2.2 + vol_ratio * 18 + signal_align * 15))
-        confidences.append(confidence)
+        # ========== IMPROVED CONFIDENCE ==========
+        adx_val = last['ADX'] if not pd.isna(last['ADX']) else 18
+        
+        # 1. Trend strength (capped)
+        adx_contrib = min(adx_val * 1.4, 45)
+        
+        # 2. Volume confirmation (capped)
+        vol_contrib = min(vol_ratio * 12, 25)
+        
+        # 3. Signal alignment (now has real penalty)
+        if (last['MACD_hist'] > 0) == (last['Close'] > last['VWAP']):
+            align_contrib = 20
+        else:
+            align_contrib = -10
+        
+        # 4. Score magnitude (very important)
+        score_abs = abs(score)
+        if score_abs > 40:
+            score_contrib = 15
+        elif score_abs > 25:
+            score_contrib = 8
+        elif score_abs < 12:
+            score_contrib = -15
+        else:
+            score_contrib = 0
+        
+        raw_conf = adx_contrib + vol_contrib + align_contrib + score_contrib
+        confidence = min(100, max(15, raw_conf))   # floor at 15
+        
+        confidences.append(round(confidence, 1))
     
+    # Build history
     history = pd.DataFrame({
         'Time': df.index[start_idx:],
         'Score': scores,
@@ -70,7 +108,7 @@ def calculate_score_with_history(df):
         'Price': df['Close'].iloc[start_idx:].values
     })
     
-    # Keep only today's data for the chart
+    # Keep only today's data
     today = pd.Timestamp.now().normalize()
     history = history[history['Time'].dt.date == today.date()].copy()
     
