@@ -92,6 +92,31 @@ def calculate_score_with_history(df):
         'Candles_Used': len(history)
     }, df, history
 
+
+def refresh_single_stock(ticker_clean, interval, period):
+    """Fetch + recalculate only one ticker and return the updated result dict."""
+    ticker = ticker_clean if ticker_clean.endswith('.NS') else f"{ticker_clean}.NS"
+    
+    data = yf.download(ticker, period=period, interval=interval, prepost=True, progress=False)
+    
+    if isinstance(data.columns, pd.MultiIndex):
+        data.columns = data.columns.get_level_values(0)
+    
+    if len(data) < 25:
+        raise ValueError(f"Not enough candles ({len(data)}) for {ticker}")
+    
+    score, details, _, score_history = calculate_score_with_history(data)
+    
+    return {
+        'Ticker': ticker_clean,
+        'Current_Score': score,
+        'Price': round(data['Close'].iloc[-1], 2),
+        'Change%': round((data['Close'].iloc[-1] / data['Close'].iloc[-2] - 1) * 100, 2) if len(data) > 1 else 0,
+        'Details': details,
+        'Score_History': score_history
+    }
+
+
 # ================== SIDEBAR ==================
 st.sidebar.header("Settings")
 
@@ -173,48 +198,35 @@ if 'results' in st.session_state and not st.session_state.results.empty:
         for _, r in df_results.tail(5).iterrows():
             st.metric(r['Ticker'], f"₹{r['Price']}", f"{r['Change%']}% | Score {r['Current_Score']}")
     
-    # ========== DOWNLOAD TOP 10 CSV ==========
-    st.divider()
-    st.subheader("📥 Download Top 10")
-    
-    top10 = df_results.head(10).copy()
-    
-    # Expand Details dict into separate columns
-    details_df = pd.json_normalize(top10['Details'])
-    export_df = pd.concat([
-        top10[['Ticker', 'Current_Score', 'Price', 'Change%']].reset_index(drop=True),
-        details_df.reset_index(drop=True)
-    ], axis=1)
-    
-    # Reorder columns for clarity
-    export_df = export_df[[
-        'Ticker', 'Current_Score', 'Price', 'Change%',
-        'Confidence', 'RSI', 'VWAP_Dist', 'Candles_Used'
-    ]]
-    
-    # Rename for cleaner CSV headers
-    export_df.columns = [
-        'Ticker', 'Score', 'Price (₹)', 'Change %',
-        'Confidence', 'RSI', 'VWAP Distance', 'Candles Used'
-    ]
-    
-    csv = export_df.to_csv(index=False).encode('utf-8')
-    
-    st.download_button(
-        label="⬇️ Download Top 10 as CSV",
-        data=csv,
-        file_name="top10_day_trading_scan.csv",
-        mime="text/csv",
-        type="primary"
-    )
-    
-    # Preview the table
-    st.dataframe(export_df, use_container_width=True, hide_index=True)
-    
     st.divider()
     
     selected = st.selectbox("Select stock", df_results['Ticker'])
-    stock = df_results[df_results['Ticker'] == selected].iloc[0]
+    
+    # ---- NEW: Refresh button for the selected stock ----
+    refresh_col1, refresh_col2 = st.columns([1, 4])
+    with refresh_col1:
+        if st.button("🔄 Refresh This Stock", type="secondary", use_container_width=True):
+            with st.spinner(f"Refreshing {selected}..."):
+                try:
+                    updated = refresh_single_stock(selected, interval, period)
+                    
+                    # Update the row in session_state
+                    mask = st.session_state.results['Ticker'] == selected
+                    for key, value in updated.items():
+                        st.session_state.results.loc[mask, key] = value
+                    
+                    # Re-sort so ranking stays correct
+                    st.session_state.results = st.session_state.results.sort_values(
+                        by='Current_Score', ascending=False
+                    ).reset_index(drop=True)
+                    
+                    st.success(f"✅ {selected} refreshed!")
+                    st.rerun()   # force immediate UI update
+                except Exception as e:
+                    st.error(f"Refresh failed: {e}")
+    
+    # Get the (possibly just-updated) stock data
+    stock = st.session_state.results[st.session_state.results['Ticker'] == selected].iloc[0]
     history = stock['Score_History']
     
     score_color = "lime" if stock['Current_Score'] > 30 else "red" if stock['Current_Score'] < -30 else "orange"
