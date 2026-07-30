@@ -1,97 +1,91 @@
 import streamlit as st
 import pandas as pd
 import yfinance as yf
-from streamlit_autorefresh import st_autorefresh
 from datetime import datetime
 
-st.set_page_config(page_title="Live Stock Price Tracker", layout="wide")
+st.set_page_config(page_title="Stock Price Tracker", layout="wide")
 
 st.title("📈 Live Stock Price Tracker")
 
-st.markdown("Enter stock names (one per line). Example:")
-st.code("""RELIANCE
+# ---------- Session State ----------
+if "stocks" not in st.session_state:
+    st.session_state.stocks = []
+
+if "price_table" not in st.session_state:
+    st.session_state.price_table = pd.DataFrame()
+
+# ---------- Input ----------
+stock_text = st.text_area(
+    "Enter Stock Symbols (one per line)",
+    height=180,
+    placeholder="""RELIANCE
 TCS
 INFY
 ICICIBANK
-HDFCBANK""")
-
-stock_text = st.text_area(
-    "Stocks",
-    height=200,
-    placeholder="Enter one stock per line..."
+HDFCBANK"""
 )
 
-col1, col2 = st.columns(2)
+col1, col2, col3 = st.columns(3)
 
-start = col1.button("▶ Start Tracking")
-clear = col2.button("🗑 Clear")
+# ---------- Start Tracking ----------
+if col1.button("▶ Start Tracking"):
 
-if clear:
-    st.session_state.clear()
-    st.rerun()
+    stocks = []
 
-# Refresh every 5 minutes
-st_autorefresh(interval=300000, key="refresh")
-
-if start:
-
-    stocks = [
-        s.strip().upper() + ".NS"
-        for s in stock_text.splitlines()
-        if s.strip()
-    ]
+    for s in stock_text.splitlines():
+        s = s.strip().upper()
+        if s:
+            if not s.endswith(".NS"):
+                s += ".NS"
+            stocks.append(s)
 
     stocks = stocks[:20]
 
-    st.session_state["stocks"] = stocks
+    st.session_state.stocks = stocks
+    st.session_state.price_table = pd.DataFrame(index=stocks)
 
-if "stocks" in st.session_state:
+# ---------- Refresh Prices ----------
+if col2.button("🔄 Refresh Prices"):
 
-    stocks = st.session_state["stocks"]
+    if len(st.session_state.stocks) == 0:
+        st.warning("Start tracking first.")
+    else:
 
-    if "price_table" not in st.session_state:
-
-        df = pd.DataFrame(index=stocks)
-
-        st.session_state["price_table"] = df
-
-    df = st.session_state["price_table"]
-
-    now = datetime.now().strftime("%H:%M")
-
-    if now not in df.columns:
+        now = datetime.now().strftime("%H:%M")
 
         prices = []
 
-        with st.spinner("Fetching prices..."):
+        for stock in st.session_state.stocks:
 
-            for stock in stocks:
+            try:
+                ticker = yf.Ticker(stock)
+                price = ticker.fast_info["lastPrice"]
+                prices.append(round(price, 2))
 
-                try:
-                    ticker = yf.Ticker(stock)
+            except:
+                prices.append(None)
 
-                    price = ticker.fast_info["lastPrice"]
+        st.session_state.price_table[now] = prices
 
-                    prices.append(round(price, 2))
+        st.success(f"Prices captured at {now}")
 
-                except:
+# ---------- Clear ----------
+if col3.button("🗑 Clear"):
 
-                    prices.append(None)
+    st.session_state.stocks = []
+    st.session_state.price_table = pd.DataFrame()
 
-        df[now] = prices
+# ---------- Display ----------
+if not st.session_state.price_table.empty:
 
-        st.session_state["price_table"] = df
-
-        df.to_csv("prices.csv")
-
-    st.subheader("Live Prices")
+    st.subheader("Price Tracker")
 
     st.dataframe(
-        st.session_state["price_table"],
+        st.session_state.price_table,
         use_container_width=True
     )
 
-    csv = st.session_state["price_table"].to_csv().encode("utf-8")
+    csv = st.session_state.price_table.to_csv().encode("utf-8")
 
     st.download_button(
         "📥 Export CSV",
@@ -99,9 +93,3 @@ if "stocks" in st.session_state:
         file_name="prices.csv",
         mime="text/csv"
     )
-
-    st.caption(f"Last Updated : {datetime.now().strftime('%d-%m-%Y %H:%M:%S')}")
-
-else:
-
-    st.info("Enter stocks and click **Start Tracking**.")
