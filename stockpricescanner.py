@@ -85,6 +85,7 @@ if refresh:
             row = df.T
 
             row.index = [stock]
+            final_df = final_df.round(2)
 
             final_df = pd.concat([final_df, row])
 
